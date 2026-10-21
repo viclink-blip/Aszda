@@ -5,7 +5,7 @@
 #   docker compose exec api flask --app wsgi db upgrade
 #   docker compose exec api flask --app wsgi aszda create-admin
 #
-# Web app: http://localhost:3000   API: http://localhost:5000/api/health
+# Web app: http://localhost:3000   API health: http://localhost:3000/api/health
 # This file is for development. See docs/DEPLOYMENT.md for production.
 
 services:
@@ -45,8 +45,9 @@ services:
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
-    ports:
-      - "5000:5000"
+    # No host port: the web app reaches the API over Docker's network, and your
+    # browser only needs port 3000. Check the API with:
+    #   curl http://localhost:3000/api/health
 
   worker:
     build: ./backend
