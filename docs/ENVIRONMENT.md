@@ -17,7 +17,7 @@ locally — `python-dotenv` loads that file). The template with every variable i
 | `ASZDA_FRONTEND_URL` | `http://localhost:3000` | Used to build links in emails. |
 | `ASZDA_CORS_ORIGINS` | `http://localhost:3000` | Comma-separated. Only needed if the browser calls the API from another origin. |
 | `ASZDA_COOKIE_SECURE` | `true` (`false` in development) | Must be `true` in production (HTTPS). |
-| `ASZDA_TRUSTED_PROXIES` | `0` | How many reverse proxies sit in front of the API (nginx = 1). Needed for correct client IPs. |
+| `ASZDA_TRUSTED_PROXIES` | `0` | How many reverse proxies that **add** the client IP sit in front of the API (nginx sending `/api` straight to Flask = 1). Do **not** count the Next.js `/api` rewrite: it only passes through a client-supplied `X-Forwarded-For`, which anyone can fake. |
 | `ASZDA_CELERY_EAGER` | `false` | Development only: run jobs inside the API process. Refused in production. |
 | `ASZDA_ACCESS_TOKEN_MINUTES` | `15` | Access token lifetime. |
 | `ASZDA_REFRESH_TOKEN_DAYS` | `14` | How long a device stays signed in without activity. |

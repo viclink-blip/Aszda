@@ -59,6 +59,9 @@ Unexpected errors return a generic message with a reference ID; details go to se
 Passwords, tokens and keys are never written to the audit log.
 
 ## Known gaps (to close before public launch)
+- In development, requests go through the Next.js `/api` rewrite, which hides client IPs, so per-IP
+  rate limits are shared (per-email login limits still apply). Production must route `/api` from
+  nginx straight to the API (see docs/DEPLOYMENT.md).
 - No multi-factor authentication yet.
 - No automated malware scanning of uploads (type checks only).
 - Email sending in production requires an SMTP provider to be configured.

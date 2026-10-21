@@ -81,7 +81,7 @@ source .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 cp ../.env.example .env              # then edit .env (see docs/ENVIRONMENT.md)
 flask --app wsgi db upgrade          # create the tables
-flask --app wsgi aszda create-admin  # your first admin account (asks for a password)
+flask --app wsgi aszda create-admin  # first admin (asks for email, name, password; or --email/--name)
 flask --app wsgi run --port 5000     # API at http://localhost:5000/api/health
 ```
 

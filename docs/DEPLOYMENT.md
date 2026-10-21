@@ -17,7 +17,11 @@ Nothing has been deployed yet. This is the recommended path for a first staging/
 2. **Worker**: `celery -A celery_worker.celery worker --loglevel=info -Q aszda --concurrency=2`.
    Scale workers for more parallel generations.
 3. **Web**: `npm run build && npm start` in `frontend/` (port 3000), with `ASZDA_API_URL` pointing at the API.
-4. **Reverse proxy**: `/api/` → API, everything else → web, HTTPS only.
+4. **Reverse proxy**: `/api/` → API **directly**, everything else → web, HTTPS only.
+   Important: in production, do not send API traffic through the Next.js `/api` rewrite. That rewrite
+   does not add the client IP (verified during the build), so the API would see every user as the
+   Next.js server and per-IP rate limits would be shared by everyone. nginx (with
+   `ASZDA_TRUSTED_PROXIES=1`) passes the real client IP. The rewrite is a development convenience.
 
 ## Production settings (minimum)
 ```

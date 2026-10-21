@@ -26,6 +26,8 @@ ordering, asset uploads and previews, job history per project.
 
 ## Phase 5 — Video and animation workflows 🟡
 - ✅ Video Studio; Animation Studio animates a character reference image into a clip
+- ⏳ A dedicated animation provider/model kind: today Animation Studio uses a video model in
+  image-to-video mode, so its jobs are recorded with kind `video`
 - ⏳ Use scene descriptions + character sheets to pre-fill generation prompts automatically
 - ⏳ Keep a consistent character look across scenes (provider reference features)
 
