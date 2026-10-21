@@ -62,9 +62,11 @@ services:
       redis: { condition: service_healthy }
 
   web:
-    build: ./frontend
-    environment:
-      ASZDA_API_URL: http://api:5000
+    build:
+      context: ./frontend
+      args:
+        # Fixed at build time by Next.js (see frontend/Dockerfile).
+        ASZDA_API_URL: http://api:5000
     depends_on:
       - api
     ports:

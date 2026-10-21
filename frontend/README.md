@@ -47,6 +47,10 @@ ASZDA_ENV=development ASZDA_MAIL_BACKEND=console ASZDA_CELERY_EAGER=true \
 
 ## How it fits together
 
+- **Build-time API address.** Next.js fixes the `/api` forwarding address when you run
+  `npm run build` (checked during development), so set `ASZDA_API_URL` before building;
+  changing it later needs a rebuild. `npm run dev` reads it on start.
+
 - **API proxy.** `next.config.ts` rewrites `/api/*` to `ASZDA_API_URL`, so the
   browser only ever talks to this site (same origin). The HttpOnly refresh cookie
   and the CSRF header work without CORS.

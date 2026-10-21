@@ -1,20 +1,19 @@
 # ASZDA Studio web app image.
-FROM node:22-slim AS build
+FROM node:22-slim
 WORKDIR /app
+
+# Next.js fixes the /api forwarding address when the app is BUILT, not when it
+# starts, so the API address must be known here. docker-compose passes
+# http://api:5000 (the API container); change it for other setups.
+ARG ASZDA_API_URL=http://api:5000
+ENV ASZDA_API_URL=$ASZDA_API_URL
+
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM node:22-slim
-WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /app/package.json /app/package-lock.json ./
-RUN npm ci --omit=dev
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/public ./public
-COPY --from=build /app/next.config.ts ./next.config.ts
-# ASZDA_API_URL is read when the server starts (set it in docker-compose or your platform).
 USER node
 EXPOSE 3000
 CMD ["npx", "next", "start", "-p", "3000"]

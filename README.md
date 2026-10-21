@@ -116,6 +116,11 @@ See [docs/PROVIDERS.md](docs/PROVIDERS.md) and [docs/CREDITS.md](docs/CREDITS.md
 
 ## Quick start (Docker)
 
+You need Docker with the **Compose** plugin (`docker compose version` should print a version).
+On Ubuntu, if it says `unknown flag` or `'compose' is not a docker command`:
+`sudo apt install docker-compose-v2` (Docker from Ubuntu's own packages) or
+`sudo apt install docker-compose-plugin` (Docker from docker.com's repository).
+
 ```bash
 cp .env.example .env                                  # in the project root; edit values
 docker compose up --build
