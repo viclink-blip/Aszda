@@ -139,6 +139,11 @@ More in [docs/TESTING.md](docs/TESTING.md).
 
 ---
 
+## Screenshots
+
+From the first build's browser smoke test: [docs/screenshots/](docs/screenshots/)
+(home, sign-up, dashboard light/dark, storyboard, studios, mobile, admin, settings).
+
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — how the pieces fit together, and why
