@@ -21,8 +21,9 @@ services:
       test: ["CMD-SHELL", "pg_isready -U aszda"]
       interval: 5s
       retries: 10
-    ports:
-      - "5432:5432"
+    # No host port: the API and worker reach the database over Docker's own
+    # network, so this does not clash with a PostgreSQL already on your computer.
+    # To inspect it: docker compose exec db psql -U aszda
 
   redis:
     image: redis:7-alpine
