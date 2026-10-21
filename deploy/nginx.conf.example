@@ -1,0 +1,43 @@
+# Example nginx reverse proxy for ASZDA Studio (production).
+# - Terminates HTTPS (certificates from Let's Encrypt via certbot).
+# - Sends /api/ to the Flask API (gunicorn) and everything else to the Next.js server.
+# Replace studio.example.com with your domain. Set ASZDA_TRUSTED_PROXIES=1 on the API.
+
+server {
+    listen 80;
+    server_name studio.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name studio.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/studio.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/studio.example.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+
+    # Keep in line with ASZDA_MAX_UPLOAD_MB (+ a little room).
+    client_max_body_size 55m;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_read_timeout 120s;
+        # Stream uploads straight to the API instead of buffering them in nginx.
+        proxy_request_buffering off;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

@@ -1,0 +1,38 @@
+{
+  "_comment": [
+    "EXAMPLE ONLY. These credit prices are placeholders for local testing, not approved ASZDA prices.",
+    "Copy this file (e.g. to pricing.json), set the numbers you decide on, and point ASZDA_PRICING_FILE at it.",
+    "credits_per_1000: ASZDA credits charged per 1000 units of each usage metric.",
+    "provider_usd_per_1000: OPTIONAL, what the provider charges you; only used for admin cost estimates.",
+    "Anthropic USD rates below are from Anthropic's published price table (Claude Opus 5.5: $4 / $20 per million input / output tokens) as of 2026-10-06; re-check before relying on them.",
+    "OpenAI and Runway provider USD rates are intentionally left out because they were not verified from official pricing pages. Add them when you have confirmed them.",
+    "Models missing from this file cannot be used at all."
+  ],
+  "models": {
+    "anthropic:claude-opus-5-5": {
+      "credits_per_1000": { "input_tokens": 1, "output_tokens": 5 },
+      "minimum_credits": 1,
+      "provider_usd_per_1000": { "input_tokens": 0.004, "output_tokens": 0.02 }
+    },
+    "openai:gpt-4o-mini-tts": {
+      "credits_per_1000": { "characters": 2 },
+      "minimum_credits": 1
+    },
+    "openai:tts-1": {
+      "credits_per_1000": { "characters": 2 },
+      "minimum_credits": 1
+    },
+    "openai:tts-1-hd": {
+      "credits_per_1000": { "characters": 4 },
+      "minimum_credits": 1
+    },
+    "runway:gen4.5": {
+      "credits_per_1000": { "video_seconds": 15000 },
+      "minimum_credits": 30
+    },
+    "runway:veo3.1_fast": {
+      "credits_per_1000": { "video_seconds": 12000, "video_seconds_with_audio": 18000 },
+      "minimum_credits": 48
+    }
+  }
+}

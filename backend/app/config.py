@@ -42,7 +42,9 @@ class BaseConfig:
     REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
     CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", REDIS_URL)
     CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", REDIS_URL)
-    CELERY_TASK_ALWAYS_EAGER = False
+    # Development convenience: run jobs inside the web process instead of a worker.
+    # Never enable this in production (long jobs would block web requests).
+    CELERY_TASK_ALWAYS_EAGER = _bool("ASZDA_CELERY_EAGER", False)
 
     # Public URL of the web app; used to build links in emails.
     FRONTEND_URL = os.environ.get("ASZDA_FRONTEND_URL", "http://localhost:3000").rstrip("/")
@@ -160,6 +162,8 @@ class ProductionConfig(BaseConfig):
             problems.append("ASZDA_RATELIMIT_STORAGE_URI should point at Redis in production")
         if cls.MAIL_BACKEND != "smtp":
             problems.append("ASZDA_MAIL_BACKEND must be 'smtp' in production")
+        if cls.CELERY_TASK_ALWAYS_EAGER:
+            problems.append("ASZDA_CELERY_EAGER must be off in production; run a Celery worker")
         if cls.STORAGE_BACKEND == "s3" and not cls.S3_BUCKET:
             problems.append("ASZDA_S3_BUCKET must be set when ASZDA_STORAGE_BACKEND=s3")
         return problems

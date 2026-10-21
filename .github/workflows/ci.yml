@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: aszda
+          POSTGRES_PASSWORD: aszda
+          POSTGRES_DB: aszda_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U aszda" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://aszda:aszda@localhost:5432/aszda_test
+      DATABASE_URL: postgresql+psycopg://aszda:aszda@localhost:5432/aszda_test
+      ASZDA_ENV: testing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Lint
+        run: ruff check .
+      - name: Tests (also apply every migration to a fresh database)
+        run: pytest
+      - name: Models and migrations agree
+        run: flask --app wsgi db check
+      - name: Example pricing file is valid
+        run: ASZDA_ENV=development ASZDA_PRICING_FILE=pricing.example.json flask --app wsgi aszda check-pricing
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run build

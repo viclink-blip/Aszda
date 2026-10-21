@@ -1,0 +1,75 @@
+# Local development stack: PostgreSQL, Redis, API, worker and web app.
+#
+#   cp .env.example .env        # then edit values
+#   docker compose up --build
+#   docker compose exec api flask --app wsgi db upgrade
+#   docker compose exec api flask --app wsgi aszda create-admin
+#
+# Web app: http://localhost:3000   API: http://localhost:5000/api/health
+# This file is for development. See docs/DEPLOYMENT.md for production.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aszda
+      POSTGRES_PASSWORD: aszda
+      POSTGRES_DB: aszda
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aszda"]
+      interval: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://aszda:aszda@db:5432/aszda
+      REDIS_URL: redis://redis:6379/0
+      ASZDA_RATELIMIT_STORAGE_URI: redis://redis:6379/1
+      ASZDA_LOCAL_STORAGE_ROOT: /app/var/storage
+    volumes:
+      - media:/app/var/storage
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports:
+      - "5000:5000"
+
+  worker:
+    build: ./backend
+    command: ["celery", "-A", "celery_worker.celery", "worker", "--loglevel=info", "-Q", "aszda", "--concurrency=2"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://aszda:aszda@db:5432/aszda
+      REDIS_URL: redis://redis:6379/0
+      ASZDA_LOCAL_STORAGE_ROOT: /app/var/storage
+    volumes:
+      - media:/app/var/storage
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  web:
+    build: ./frontend
+    environment:
+      ASZDA_API_URL: http://api:5000
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  media:
