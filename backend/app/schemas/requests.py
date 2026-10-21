@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -178,6 +178,19 @@ class QuoteIn(Strict):
     model: str = Field(min_length=1, max_length=100)
     kind: GenerationKind
     params: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---- Billing ------------------------------------------------------------------------
+
+class CheckoutIn(Strict):
+    """Only WHAT to buy. Prices, currency and credits come from the server's catalog, so
+    fields like amount or currency are rejected as unknown (extra="forbid")."""
+    item_type: Literal["credit_package", "subscription"]
+    item_code: str = Field(min_length=1, max_length=50, pattern=r"^[a-z0-9_]+$")
+
+
+class PaymentReferenceIn(Strict):
+    reference: str = Field(min_length=6, max_length=100, pattern=r"^[A-Za-z0-9.=-]+$")
 
 
 # ---- Admin --------------------------------------------------------------------------

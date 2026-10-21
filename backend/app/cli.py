@@ -102,4 +102,63 @@ def register_cli(app: Flask) -> None:
                 key = "key set" if adapter.is_configured() else f"missing {adapter.credential_env}"
                 click.echo(f"{adapter.name}:{spec.id:<22} {status:<55} [{key}]")
 
+    @group.command("paystack-check")
+    @click.option("--try-usd", is_flag=True,
+                  help="Ask Paystack to start (not charge) a $2.00 USD test transaction to see if USD is enabled.")
+    @click.option("--allow-live", is_flag=True, help="Allow --try-usd with a live key (creates an unpaid transaction).")
+    def paystack_check(try_usd: bool, allow_live: bool) -> None:
+        """Check the Paystack set-up: key, USD switch, plan codes, and optionally USD support."""
+        from flask import current_app
+
+        from app.billing import paystack
+        from app.billing.catalog import get_catalog
+        from app.services.payment_service import checkout_status
+
+        mode = paystack.key_mode()
+        click.echo(f"Secret key: {'not set' if mode is None else mode + ' key'}")
+        click.echo(f"ASZDA_PAYSTACK_USD_ENABLED: {current_app.config['PAYSTACK_USD_ENABLED']}")
+        status = checkout_status()
+        click.echo(f"Checkout: {'ENABLED' if status['enabled'] else 'disabled (' + status['reason'] + ')'}")
+        if mode is None:
+            return
+        for plan in get_catalog().plans:
+            if plan.is_free:
+                continue
+            if not plan.paystack_plan_code:
+                click.echo(f"  plan {plan.code}: no paystack_plan_code configured")
+                continue
+            try:
+                remote = paystack.fetch_plan(plan.paystack_plan_code)
+            except paystack.PaystackError as exc:
+                click.echo(f"  plan {plan.code}: {plan.paystack_plan_code} could not be fetched ({exc.message})")
+                continue
+            ok = (remote.get("amount") == plan.price_usd_cents and str(remote.get("currency")).upper() == "USD"
+                  and remote.get("interval") == "monthly")
+            click.echo(f"  plan {plan.code}: {plan.paystack_plan_code} amount={remote.get('amount')} "
+                       f"currency={remote.get('currency')} interval={remote.get('interval')} -> "
+                       f"{'MATCHES catalog' if ok else 'DOES NOT MATCH catalog'}")
+        if try_usd:
+            if mode != "test" and not allow_live:
+                raise click.ClickException("--try-usd uses a test key by default; add --allow-live to use a live key.")
+            try:
+                data = paystack.initialize_transaction(
+                    email="usd-check@aszda.invalid", amount_minor=200, currency="USD",
+                    reference=f"aszda-usdcheck-{uuid.uuid4().hex[:12]}",
+                    callback_url=f"{current_app.config['FRONTEND_URL']}/app/billing/complete",
+                    metadata={"purpose": "ASZDA USD capability check; do not pay"})
+                click.echo("USD check: Paystack ACCEPTED a USD transaction for this key "
+                           f"(checkout link created, nothing charged): {data.get('authorization_url')}")
+                click.echo("Next: confirm USD settlement in the Paystack dashboard, then set "
+                           "ASZDA_PAYSTACK_USD_ENABLED=true (docs/BILLING.md).")
+            except paystack.PaystackError as exc:
+                click.echo(f"USD check: Paystack REFUSED a USD transaction: {exc.message}")
+                click.echo("Keep ASZDA_PAYSTACK_USD_ENABLED=false and ask Paystack to enable USD.")
+
+    @group.command("expire-subscriptions")
+    def expire_subscriptions() -> None:
+        """End cancelled plans whose paid period is over (run daily)."""
+        from app.services.payment_service import expire_overdue_subscriptions
+
+        click.echo(f"{expire_overdue_subscriptions()} plan(s) ended.")
+
     app.cli.add_command(group)

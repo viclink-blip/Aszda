@@ -239,3 +239,25 @@ def credit_transactions():
     total = db.session.scalar(select(func.count()).select_from(query.subquery()))
     txs = db.session.scalars(query.order_by(CreditTransaction.created_at.desc()).limit(limit).offset(offset))
     return jsonify(page([credit_tx_out(t) for t in txs], total, limit, offset))
+
+
+@bp.get("/payments")
+@doc("All payments (filter by status); amounts are what Paystack confirmed", tags=["Admin"], auth="admin",
+     query={"status": "pending|succeeded|failed|mismatch"})
+@admin_required
+def list_payments():
+    from app.models import Payment, PaymentStatus
+    from app.schemas.serializers import payment_out
+    from app.services import payment_service
+
+    limit, offset = pagination()
+    query = select(Payment)
+    if request.args.get("status"):
+        try:
+            query = query.where(Payment.status == PaymentStatus(request.args["status"]))
+        except ValueError as exc:
+            raise APIError("Invalid status.", code="invalid_filter") from exc
+    total = db.session.scalar(select(func.count()).select_from(query.subquery()))
+    items = db.session.scalars(query.order_by(Payment.created_at.desc()).limit(limit).offset(offset))
+    return jsonify({**page([payment_out(p, admin_view=True) for p in items], total, limit, offset),
+                    "checkout": payment_service.checkout_status()})

@@ -111,6 +111,23 @@ class BaseConfig:
     PROVIDER_POLL_INTERVAL_SECONDS = _int("ASZDA_PROVIDER_POLL_SECONDS", 10)
     PROVIDER_MAX_POLL_MINUTES = _int("ASZDA_PROVIDER_MAX_POLL_MINUTES", 30)
 
+    # ---- Money and payments (see docs/BILLING.md) ------------------------------
+    # Prices are shown in DISPLAY_CURRENCY. REFERENCE_CURRENCY amounts are optional,
+    # clearly labelled conversions using a fixed rate the founder configures. It is a
+    # business reference rate, not a live market rate, and it is never used to charge.
+    DISPLAY_CURRENCY = "USD"
+    REFERENCE_CURRENCY = "KES"
+    USD_TO_KES_REFERENCE_RATE = os.environ.get("ASZDA_USD_TO_KES_REFERENCE_RATE", "133")
+    BILLING_CATALOG_FILE = os.environ.get(
+        "ASZDA_BILLING_CATALOG_FILE",
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "billing_catalog.json"),
+    )
+    PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY", "")
+    # Paystack charges in the display currency (USD). Checkout stays OFF until the
+    # founder has confirmed the Paystack account accepts and settles USD
+    # (docs/BILLING.md, "Enabling USD checkout"). ASZDA never converts a charge to KES.
+    PAYSTACK_USD_ENABLED = _bool("ASZDA_PAYSTACK_USD_ENABLED", False)
+
     LOG_LEVEL = os.environ.get("ASZDA_LOG_LEVEL", "INFO")
 
     @classmethod
@@ -143,6 +160,9 @@ class TestingConfig(BaseConfig):
     RUNWAY_API_KEY = ""
     PRICING_FILE = ""
     PROVIDER_POLL_INTERVAL_SECONDS = 0
+    PAYSTACK_SECRET_KEY = ""
+    PAYSTACK_USD_ENABLED = False
+    USD_TO_KES_REFERENCE_RATE = "133"
 
 
 class ProductionConfig(BaseConfig):
@@ -165,6 +185,9 @@ class ProductionConfig(BaseConfig):
             problems.append("ASZDA_RATELIMIT_STORAGE_URI should point at Redis in production")
         if cls.MAIL_BACKEND != "smtp":
             problems.append("ASZDA_MAIL_BACKEND must be 'smtp' in production")
+        if cls.PAYSTACK_SECRET_KEY.startswith("sk_test_") and not _bool("ASZDA_ALLOW_TEST_PAYMENTS", False):
+            problems.append("PAYSTACK_SECRET_KEY is a test key; use the live key in production "
+                            "(or set ASZDA_ALLOW_TEST_PAYMENTS=true on a staging server)")
         if cls.CELERY_TASK_ALWAYS_EAGER:
             problems.append("ASZDA_CELERY_EAGER must be off in production; run a Celery worker")
         if cls.STORAGE_BACKEND == "s3" and not cls.S3_BUCKET:

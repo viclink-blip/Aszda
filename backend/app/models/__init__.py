@@ -2,6 +2,14 @@
 
 from app.models.asset import Asset, AssetKind, AssetSource
 from app.models.audit import AuditEvent
+from app.models.billing import (
+    Payment,
+    PaymentEvent,
+    PaymentKind,
+    PaymentStatus,
+    Subscription,
+    SubscriptionStatus,
+)
 from app.models.credits import CreditAccount, CreditTransaction, CreditTxType
 from app.models.generation import (
     ACTIVE_STATUSES,
@@ -24,6 +32,7 @@ from app.models.user import (
 __all__ = [
     "ACTIVE_STATUSES", "FINAL_STATUSES", "Asset", "AssetKind", "AssetSource", "AuditEvent",
     "AuthSession", "Character", "CreditAccount", "CreditTransaction", "CreditTxType",
-    "GenerationJob", "GenerationKind", "JobStatus", "Project", "ProjectStatus", "RefreshToken",
+    "GenerationJob", "GenerationKind", "JobStatus", "Payment", "PaymentEvent", "PaymentKind",
+    "PaymentStatus", "Project", "Subscription", "SubscriptionStatus", "ProjectStatus", "RefreshToken",
     "Role", "Scene", "TokenPurpose", "User", "UserProfile", "UserToken", "scene_characters",
 ]

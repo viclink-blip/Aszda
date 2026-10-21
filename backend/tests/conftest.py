@@ -28,7 +28,8 @@ from tests.fakes import FakeAsyncVideoAdapter, FakeTextAdapter
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 200
 
-TABLES = ["scene_characters", "credit_transactions", "credit_accounts", "assets", "generation_jobs",
+TABLES = ["payment_events", "payments", "subscriptions",
+          "scene_characters", "credit_transactions", "credit_accounts", "assets", "generation_jobs",
           "characters", "scenes", "projects", "refresh_tokens", "auth_sessions", "user_tokens",
           "user_profiles", "audit_events", "users"]
 

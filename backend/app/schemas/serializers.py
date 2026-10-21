@@ -123,3 +123,36 @@ def audit_out(e: AuditEvent) -> dict[str, Any]:
         "action": e.action, "target_type": e.target_type, "target_id": e.target_id,
         "ip_address": e.ip_address, "details": e.details, "created_at": iso(e.created_at),
     }
+
+
+def payment_out(p, *, admin_view: bool = False) -> dict[str, Any]:
+    from app.billing.money import format_money, usd_with_reference
+
+    expected = usd_with_reference(p.amount_minor) if p.currency == "USD" else {
+        "amount_minor": p.amount_minor, "currency": p.currency,
+        "formatted": format_money(p.amount_minor, p.currency)}
+    paid = None
+    if p.paid_amount_minor is not None and p.paid_currency in ("USD", "KES"):
+        paid = {"amount_minor": p.paid_amount_minor, "currency": p.paid_currency,
+                "formatted": format_money(p.paid_amount_minor, p.paid_currency)}
+    out = {
+        "id": str(p.id), "reference": p.reference, "kind": p.kind.value, "item_code": p.item_code,
+        "item_name": p.item_name, "status": p.status.value, "price": expected, "amount_paid": paid,
+        "credits": p.credits_to_grant, "credits_granted": p.credits_granted_at is not None,
+        "channel": p.channel, "failure_reason": p.failure_reason if p.status.value != "succeeded" else None,
+        "created_at": iso(p.created_at), "paid_at": iso(p.paid_at),
+    }
+    if admin_view:
+        out["user_id"] = str(p.user_id)
+        out["provider_transaction_id"] = p.provider_transaction_id
+    return out
+
+
+def subscription_out(sub) -> dict[str, Any] | None:
+    if sub is None:
+        return None
+    return {
+        "plan_code": sub.plan_code, "status": sub.status.value,
+        "current_period_end": iso(sub.current_period_end),
+        "linked_to_paystack": bool(sub.paystack_subscription_code),
+    }

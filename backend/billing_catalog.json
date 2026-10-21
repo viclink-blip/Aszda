@@ -1,0 +1,33 @@
+{
+  "_comment": [
+    "ASZDA plans and credit packages: the single source of truth for prices.",
+    "Prices are integer US cents (900 = $9.00). The web app and checkout read them from here via the API.",
+    "monthly_credits / credits: how many ASZDA credits each purchase gives. These are founder decisions;",
+    "  null means 'not decided yet' and that item cannot be bought until a number is set.",
+    "paystack_plan_code: the PLN_... code of the matching monthly USD plan created in the Paystack dashboard.",
+    "  null means that plan cannot be subscribed to yet. See docs/BILLING.md."
+  ],
+  "plans": [
+    {"code": "free", "name": "Free", "price_usd_cents": 0, "interval": "month",
+     "monthly_credits": null, "paystack_plan_code": null,
+     "summary": "Explore the studio, plan projects and storyboards."},
+    {"code": "starter", "name": "Starter", "price_usd_cents": 900, "interval": "month",
+     "monthly_credits": null, "paystack_plan_code": null,
+     "summary": "For trying AI generation on your first projects."},
+    {"code": "creator", "name": "Creator", "price_usd_cents": 1900, "interval": "month",
+     "monthly_credits": null, "paystack_plan_code": null,
+     "summary": "For regular creators making short videos and stories."},
+    {"code": "pro_studio", "name": "Pro Studio", "price_usd_cents": 4900, "interval": "month",
+     "monthly_credits": null, "paystack_plan_code": null,
+     "summary": "For professionals producing ads and longer pieces."},
+    {"code": "studio_max", "name": "Studio Max", "price_usd_cents": 9900, "interval": "month",
+     "monthly_credits": null, "paystack_plan_code": null,
+     "summary": "For studios and teams with heavy production needs."}
+  ],
+  "credit_packages": [
+    {"code": "small", "name": "Small", "price_usd_cents": 500, "credits": null},
+    {"code": "medium", "name": "Medium", "price_usd_cents": 1000, "credits": null},
+    {"code": "large", "name": "Large", "price_usd_cents": 2500, "credits": null},
+    {"code": "professional", "name": "Professional", "price_usd_cents": 5000, "credits": null}
+  ]
+}

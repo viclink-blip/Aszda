@@ -31,7 +31,7 @@ flask --app wsgi db upgrade                 # apply all migrations
 flask --app wsgi db current                 # which migration the database is on
 flask --app wsgi db check                   # fails if models changed without a migration
 flask --app wsgi db migrate -m "add X"      # create a new migration after changing models
-flask --app wsgi db downgrade -1            # undo the last migration (development only!)
+flask --app wsgi db downgrade               # undo the last migration (development only!)
 ```
 
 ## Making a schema change
