@@ -41,7 +41,7 @@ ordering, asset uploads and previews, job history per project.
 - ⏳ Credit packages, subscriptions, receipts, webhook processing with signature checks
 
 ## Phase 8 — Testing, security, deployment 🟡
-- ✅ 71 backend tests, lint, migration checks, security headers, rate limits, audit log
+- ✅ 72 backend tests, lint, migration checks, security headers, rate limits, audit log
 - ⏳ Frontend unit tests and browser end-to-end tests in CI
 - ⏳ First production deployment (hosting choice), backups, monitoring, error tracking
 - ⏳ External security review before public launch

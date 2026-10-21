@@ -11,7 +11,7 @@ Please do not open a public issue. Email the ASZDA team (set up a dedicated addr
 - Login answers the same way for unknown emails and wrong passwords; a dummy hash equalises timing.
 - **Access tokens**: JWT (HS256), 15 minutes, kept in browser memory only.
 - **Refresh tokens**: random 256-bit values, stored only as SHA-256 hashes, single-use (rotation),
-  reuse revokes the session. Cookie: `HttpOnly`, `Secure` (production), `SameSite=Strict`, `Path=/api/auth`.
+  reuse revokes the session (a 20-second grace window allows two browser tabs to refresh at the same moment). Cookie: `HttpOnly`, `Secure` (production), `SameSite=Strict`, `Path=/api/auth`.
 - **CSRF**: cookie-based endpoints also require the `X-Requested-With: aszda` header, which a
   cross-site page cannot send without a CORS preflight that the API does not allow.
 - Each request re-checks the session row, so sign-out, password change and deactivation take

@@ -55,6 +55,9 @@ class BaseConfig:
     REFRESH_TOKEN_TTL = timedelta(days=_int("ASZDA_REFRESH_TOKEN_DAYS", 14))
     EMAIL_VERIFICATION_TTL = timedelta(hours=48)
     PASSWORD_RESET_TTL = timedelta(minutes=60)
+    # Two browser tabs may refresh at the same moment with the same token. Reuse
+    # within this many seconds is treated as that race, not as token theft.
+    REFRESH_REUSE_GRACE_SECONDS = _int("ASZDA_REFRESH_REUSE_GRACE_SECONDS", 20)
     REFRESH_COOKIE_NAME = "aszda_refresh"
     REFRESH_COOKIE_PATH = "/api/auth"
     COOKIE_SECURE = _bool("ASZDA_COOKIE_SECURE", True)

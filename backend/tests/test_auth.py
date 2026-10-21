@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from app.extensions import db
-from app.models import AuditEvent, AuthSession
+from app.models import AuditEvent, AuthSession, RefreshToken
 from app.services import email
 from tests.conftest import register
 
@@ -71,7 +71,7 @@ def test_protected_route_requires_valid_token(client):
     assert session.get("/api/me").status_code == 200
 
 
-def test_refresh_rotates_and_detects_reuse(client):
+def test_refresh_rotates_and_detects_reuse(client, app):
     register(client)
     old_cookie = client.get_cookie("aszda_refresh", path="/api/auth").value
 
@@ -81,13 +81,29 @@ def test_refresh_rotates_and_detects_reuse(client):
     assert new_cookie != old_cookie
     new_access = first.get_json()["access_token"]
 
-    # Replaying the old refresh token is treated as theft: the whole session ends.
+    # Replaying the old refresh token later is treated as theft: the whole session ends.
+    with app.app_context():
+        for t in db.session.query(RefreshToken).filter(RefreshToken.used_at.isnot(None)):
+            t.used_at = datetime.now(UTC) - timedelta(minutes=5)
+        db.session.commit()
     client.set_cookie("aszda_refresh", old_cookie, path="/api/auth")
     replay = client.post("/api/auth/refresh", headers=CSRF)
     assert replay.status_code == 401
     assert client.get("/api/me", headers={"Authorization": f"Bearer {new_access}"}).status_code == 401
     client.set_cookie("aszda_refresh", new_cookie, path="/api/auth")
     assert client.post("/api/auth/refresh", headers=CSRF).status_code == 401
+
+
+def test_concurrent_refresh_from_two_tabs_is_not_treated_as_theft(client):
+    register(client)
+    cookie = client.get_cookie("aszda_refresh", path="/api/auth").value
+    first = client.post("/api/auth/refresh", headers=CSRF)
+    client.set_cookie("aszda_refresh", cookie, path="/api/auth")  # second tab, same old cookie
+    second = client.post("/api/auth/refresh", headers=CSRF)
+    assert first.status_code == second.status_code == 200
+    for response in (first, second):
+        token = response.get_json()["access_token"]
+        assert client.get("/api/me", headers={"Authorization": f"Bearer {token}"}).status_code == 200
 
 
 def test_refresh_requires_csrf_header(client):

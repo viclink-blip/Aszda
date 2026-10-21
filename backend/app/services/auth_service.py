@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from flask import current_app
 from sqlalchemy import select, update
@@ -133,7 +133,8 @@ def rotate_refresh_token(raw_token: str) -> IssuedSession:
     if token is None:
         raise Unauthorized("Please sign in again.", code="invalid_refresh_token")
     session = db.session.get(AuthSession, token.session_id)
-    if token.used_at is not None:
+    grace = timedelta(seconds=current_app.config["REFRESH_REUSE_GRACE_SECONDS"])
+    if token.used_at is not None and now() - token.used_at > grace:
         if session.revoked_at is None:
             session.revoked_at = now()
             session.revoked_reason = "refresh_token_reuse"
@@ -148,7 +149,7 @@ def rotate_refresh_token(raw_token: str) -> IssuedSession:
     if user is None or not user.is_active:
         raise Unauthorized("This account is not available.", code="account_inactive")
 
-    token.used_at = now()
+    token.used_at = token.used_at or now()
     new_raw = _new_refresh_token(session)
     db.session.commit()
     access, ttl = create_access_token(user.id, session.id, user.role.value)

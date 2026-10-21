@@ -21,6 +21,7 @@ locally — `python-dotenv` loads that file). The template with every variable i
 | `ASZDA_CELERY_EAGER` | `false` | Development only: run jobs inside the API process. Refused in production. |
 | `ASZDA_ACCESS_TOKEN_MINUTES` | `15` | Access token lifetime. |
 | `ASZDA_REFRESH_TOKEN_DAYS` | `14` | How long a device stays signed in without activity. |
+| `ASZDA_REFRESH_REUSE_GRACE_SECONDS` | `20` | Reusing a refresh token within this window (two tabs refreshing together) is allowed; later reuse revokes the session. |
 | `ASZDA_LOG_LEVEL` | `INFO` | |
 
 ## Email

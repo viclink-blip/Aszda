@@ -15,6 +15,8 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import threading
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -237,11 +239,31 @@ def _enqueue_run(job: GenerationJob, countdown: int = 0) -> None:
             db.session.commit()
 
 
+_eager = threading.local()
+
+
 def _enqueue_poll(job: GenerationJob) -> None:
     from app.tasks.generation import poll_generation_job
 
-    poll_generation_job.apply_async(args=[str(job.id)],
-                                    countdown=current_app.config["PROVIDER_POLL_INTERVAL_SECONDS"])
+    interval = current_app.config["PROVIDER_POLL_INTERVAL_SECONDS"]
+    if not current_app.config.get("CELERY_TASK_ALWAYS_EAGER"):
+        poll_generation_job.apply_async(args=[str(job.id)], countdown=interval)
+        return
+    # Eager mode (development/tests): Celery would run the poll immediately and
+    # recursively. Poll in a loop with a real pause instead.
+    pending = getattr(_eager, "polls", None)
+    if pending is not None:
+        pending.append(job.id)
+        return
+    _eager.polls = [job.id]
+    try:
+        while _eager.polls:
+            job_id = _eager.polls.pop(0)
+            if interval:
+                time.sleep(interval)
+            poll_job(job_id)
+    finally:
+        _eager.polls = None
 
 
 # ---- Running jobs (called from Celery tasks) ----------------------------------

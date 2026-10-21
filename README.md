@@ -127,7 +127,7 @@ docker compose exec api flask --app wsgi aszda create-admin
 
 ```bash
 cd backend && source .venv/bin/activate
-pytest                       # 71 tests, uses the aszda_test database, no paid API calls
+pytest                       # 72 tests, uses the aszda_test database, no paid API calls
 ruff check .                 # lint
 flask --app wsgi db check    # models and migrations agree
 
