@@ -13,6 +13,7 @@ the EU/UK GDPR for users there, and the laws of other markets ASZDA serves.*
 | Uploaded and generated media | Object storage (private) | The user's work |
 | Generation jobs: provider, model, usage, result text | PostgreSQL | Showing results, billing, support |
 | Credit ledger | PostgreSQL | Accurate balances, disputes |
+| Payments: item, USD amount, Paystack reference, status, channel (never card details) | PostgreSQL | Receipts, reconciliation |
 | Audit events (actions, IP, times; never secrets) | PostgreSQL | Security investigation |
 
 Prompts and reference media are sent to the AI provider chosen for a job (Anthropic, OpenAI or

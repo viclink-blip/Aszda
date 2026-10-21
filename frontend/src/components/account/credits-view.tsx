@@ -3,6 +3,7 @@
 import { Coins } from "lucide-react";
 import { useState } from "react";
 import { Badge, type Tone } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -62,9 +63,10 @@ export function CreditsView() {
   return (
     <>
       <PageHeader title="Credits" description="Credits pay for generations. Here is your balance and every change to it." />
-      <Notice tone="info" title="Payments are not active yet" className="mb-6">
-        You cannot buy credits yet — the credits-based pricing is still being designed. During this early period,
-        credits are granted by ASZDA.
+      <Notice tone="info" title="Need more credits?" className="mb-6"
+        action={<ButtonLink href="/app/billing" size="sm" variant="secondary">Go to billing</ButtonLink>}>
+        Plans and credit packages are priced in US dollars on the Billing page. Credits bought there appear in
+        this ledger as &ldquo;Purchase&rdquo;.
       </Notice>
 
       {error && !data ? (

@@ -261,3 +261,103 @@ export interface AuditEvent {
   details: Record<string, unknown> | null;
   created_at: string | null;
 }
+
+// ---- Billing (prices are integer minor units; see lib/money.ts) ----------------------
+
+export interface MoneyValue {
+  amount_minor: number;
+  currency: string;
+  formatted: string;
+}
+
+/** A USD price plus its KES reference amount, both calculated by the server. */
+export interface PriceWithReference extends MoneyValue {
+  reference: MoneyValue & { rate: string; label: string };
+}
+
+export type BillingUnavailableReason =
+  | "free_plan" | "credits_not_configured" | "paystack_plan_not_configured";
+
+export interface BillingPlan {
+  code: string;
+  name: string;
+  summary: string;
+  interval: "month";
+  price: PriceWithReference;
+  monthly_credits: number | null;
+  purchasable: boolean;
+  unavailable_reason: BillingUnavailableReason | null;
+}
+
+export interface CreditPackage {
+  code: string;
+  name: string;
+  price: PriceWithReference;
+  credits: number | null;
+  purchasable: boolean;
+  unavailable_reason: BillingUnavailableReason | null;
+}
+
+export interface CurrencyInfo {
+  display_currency: string;
+  reference_currency: string;
+  usd_to_kes_reference_rate: string;
+  reference_note: string;
+}
+
+export interface CheckoutStatus {
+  enabled: boolean;
+  reason: "payments_not_configured" | "usd_checkout_not_enabled" | null;
+  message: string | null;
+  mode?: "test" | "live" | "unknown" | null;
+}
+
+export interface BillingCatalog {
+  currency: CurrencyInfo;
+  plans: BillingPlan[];
+  credit_packages: CreditPackage[];
+  checkout: CheckoutStatus;
+}
+
+export type PaymentStatus = "pending" | "succeeded" | "failed" | "mismatch";
+export type PaymentKind = "credit_package" | "subscription" | "subscription_renewal";
+
+export interface Payment {
+  id: string;
+  reference: string;
+  kind: PaymentKind;
+  item_code: string;
+  item_name: string;
+  status: PaymentStatus;
+  price: MoneyValue & { reference?: MoneyValue & { rate: string; label: string } };
+  amount_paid: MoneyValue | null;
+  credits: number;
+  credits_granted: boolean;
+  channel: string | null;
+  failure_reason: string | null;
+  created_at: string;
+  paid_at: string | null;
+}
+
+export interface AdminPayment extends Payment {
+  user_id: string;
+  provider_transaction_id: string | null;
+}
+
+export type SubscriptionStatus = "active" | "non_renewing" | "past_due" | "cancelled";
+
+export interface SubscriptionInfo {
+  plan_code: string;
+  status: SubscriptionStatus;
+  current_period_end: string | null;
+  linked_to_paystack: boolean;
+}
+
+export interface BillingOverview {
+  subscription: SubscriptionInfo | null;
+  plan: BillingPlan | null;
+  credits: CreditAccount;
+  checkout: CheckoutStatus;
+  currency: CurrencyInfo;
+  recent_payments: Payment[];
+}

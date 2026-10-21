@@ -70,10 +70,10 @@ limits on job creation. The browser never decides a cost or a balance.
 > Note for video providers: Runway reports a cost on failed tasks. ASZDA does not pass provider
 > failures on to users. Watch the admin usage report for provider-side costs you absorb.
 
-## Payments (not active)
-When a provider is chosen (for example Paystack for M-Pesa and cards in Kenya, or Stripe for
-international cards), the integration must: create payments on the server; confirm status with the
-provider's API (never trust a browser redirect); verify webhook signatures; process each webhook
-once (store the provider event ID with a unique constraint); add credits via a `purchase` ledger
-entry referenced to the payment; never store card numbers or CVVs; keep keys server-side.
-New tables then: `payments`, `payment_events`, and later `subscriptions`.
+## Payments
+
+Paystack checkout for plans and credit packages is built; see [BILLING.md](BILLING.md). Prices are in
+USD (with KES shown only as a labelled reference at the fixed rate of 133), payments are verified
+for the exact amount and currency before any credits are granted, and a paid purchase adds a
+`purchase` ledger entry exactly once. Checkout is switched off until the Paystack account is
+confirmed to accept USD.

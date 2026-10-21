@@ -67,6 +67,16 @@ locally — `python-dotenv` loads that file). The template with every variable i
 | `ASZDA_PROVIDER_POLL_SECONDS` | | How often to check asynchronous jobs (default 10; Runway asks for ≥ 5). |
 | `ASZDA_PROVIDER_MAX_POLL_MINUTES` | | Give up (and refund) after this long (default 30). |
 
+## Billing and payments (see [BILLING.md](BILLING.md))
+
+| Variable | Default | Notes |
+|---|---|---|
+| `ASZDA_USD_TO_KES_REFERENCE_RATE` | `133` | Fixed business reference rate for the labelled KES amounts. Never used to charge. |
+| `ASZDA_BILLING_CATALOG_FILE` | `backend/billing_catalog.json` | Plans and credit packages (prices in US cents). |
+| `PAYSTACK_SECRET_KEY` | *(empty)* | `sk_test_...` or `sk_live_...`. Empty = payments off. Server only. |
+| `ASZDA_PAYSTACK_USD_ENABLED` | `false` | Set to `true` only after confirming the Paystack account accepts and settles USD. |
+| `ASZDA_ALLOW_TEST_PAYMENTS` | `false` | Production refuses a test key unless this is `true` (staging only). |
+
 ## Frontend
 
 | Variable | Default | Notes |

@@ -28,7 +28,9 @@ own models can be added later without rewriting the app.
 | Script/story writing with **Anthropic Claude** | Implemented; needs `ANTHROPIC_API_KEY` + a configured price |
 | Voice (text-to-speech) with **OpenAI** | Implemented; needs `OPENAI_API_KEY` + a configured price |
 | Video (text/image-to-video) with **Runway** (`gen4.5`, `veo3.1_fast`) | Implemented; needs `RUNWAYML_API_SECRET` + a configured price |
-| Image generation, AI Film Director, final video assembly/export, payments | **Not implemented yet** (planned) |
+| Pricing in USD (plans $0–$99/month, credit packages $5–$50) with labelled KES reference amounts | Implemented and tested |
+| Paystack checkout, verification, webhooks, subscriptions, receipts | Implemented and tested with a mocked Paystack; **switched off** until USD is confirmed for the Paystack account and credit amounts are decided ([docs/BILLING.md](docs/BILLING.md)) |
+| Image generation, AI Film Director, final video assembly/export | **Not implemented yet** (planned) |
 
 Nothing in the app pretends to generate: a model is usable only when its API key **and**
 its credit price are configured. Otherwise the app shows it as unavailable.
@@ -159,6 +161,7 @@ From the first build's browser smoke test: [docs/screenshots/](docs/screenshots/
 - [docs/DATABASE.md](docs/DATABASE.md) — tables and migrations
 - [docs/PROVIDERS.md](docs/PROVIDERS.md) — AI providers: what is verified, how to add one
 - [docs/CREDITS.md](docs/CREDITS.md) — credits, pricing and limits
+- [docs/BILLING.md](docs/BILLING.md) — USD prices, KES reference, Paystack payments and how to test them
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — going to production
 - [docs/TESTING.md](docs/TESTING.md) — test strategy and commands
 - [docs/DATA_RETENTION.md](docs/DATA_RETENTION.md) — what we store and how deletion works

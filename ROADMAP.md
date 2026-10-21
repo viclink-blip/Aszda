@@ -38,9 +38,11 @@ ordering, asset uploads and previews, job history per project.
 
 ## Phase 7 — Credits and billing 🟡
 - ✅ Credit ledger, reservations, refunds, limits, admin grants, usage report
-- 🔒 Final credit prices (founder decision) — the app ships with nothing priced
-- 🔒 Payment provider choice (e.g. Paystack for M-Pesa/cards in Kenya, Stripe internationally)
-- ⏳ Credit packages, subscriptions, receipts, webhook processing with signature checks
+- ✅ USD plan and credit-package prices, KES reference amounts (fixed rate 133), one formatter
+- ✅ Paystack checkout, verification, signed webhooks, subscriptions, receipts (tested with a mock)
+- 🔒 Credits per plan and per package (founder decision)
+- 🔒 Confirm USD acceptance and settlement on ASZDA's Paystack account, then a real test payment
+- ⏳ Plan upgrades/downgrades, Paystack refund webhooks, tax invoices
 
 ## Phase 8 — Testing, security, deployment 🟡
 - ✅ 72 backend tests, lint, migration checks, security headers, rate limits, audit log

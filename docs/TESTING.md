@@ -28,7 +28,9 @@ flask --app wsgi db check       # models match migrations
 | `test_admin_security.py` | admin-only access, credit grants with audit, self-lockout guard, role change revocation, key secrecy, security headers, error leakage, login rate limit, OpenAPI, health |
 | `test_providers.py` | Anthropic/OpenAI/Runway request shapes, validation, error classification, polling, cancel, HTTPS-only downloads |
 
-Payment webhook tests will be added with the payment integration (not built yet).
+`test_billing.py` covers currency conversion and formatting, catalog validation, price-manipulation rejection, verification of amount/currency/plan, idempotent credit grants, webhook signatures, duplicates and retries, and the subscription lifecycle (Paystack mocked).
+
+Frontend money formatting: `cd frontend && npm test`.
 
 ## Frontend (`frontend/`)
 

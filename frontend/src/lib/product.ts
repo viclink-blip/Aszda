@@ -78,9 +78,9 @@ export const PLANNED: PlannedFeature[] = [
     summary: "Not offered today. If it is ever added, it will require clear consent from the voice owner.",
   },
   {
-    name: "Payments and credit packs",
+    name: "Online checkout",
     icon: Wallet,
-    summary: "Buying credits is not active yet. The credits-based pricing model is still being designed.",
+    summary: "Plans and credit packages are priced in USD. Paystack checkout opens once USD payments are confirmed for ASZDA's account.",
   },
 ];
 

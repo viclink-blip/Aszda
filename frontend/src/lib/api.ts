@@ -10,6 +10,14 @@
 
 import type {
   AdminJob,
+  AdminPayment,
+  BillingCatalog,
+  BillingOverview,
+  CheckoutStatus,
+  CurrencyInfo,
+  Payment,
+  PaymentStatus,
+  SubscriptionInfo,
   AdminOverview,
   AdminUser,
   Asset,
@@ -340,8 +348,25 @@ export const api = {
       post<{ job: Job }>(`/api/generation-jobs/${id}/retry`, {}, { "Idempotency-Key": idempotencyKey }),
   },
 
+  billing: {
+    /** Public: works signed out too (pricing page). */
+    catalog: () => request<BillingCatalog>("GET", "/api/billing/catalog", { auth: false }),
+    overview: () => get<BillingOverview>("/api/billing/overview"),
+    /** Only WHAT to buy is sent; the server decides the price, currency and credits. */
+    checkout: (item_type: "credit_package" | "subscription", item_code: string) =>
+      post<{ payment: Payment; authorization_url: string }>("/api/billing/checkout", { item_type, item_code }),
+    confirm: (reference: string) => post<{ payment: Payment }>("/api/billing/confirm", { reference }),
+    payments: (q: ListQuery = {}) => get<Page<Payment>>("/api/billing/payments", { ...q }),
+    payment: (id: string) =>
+      get<{ payment: Payment; currency: CurrencyInfo; seller: { name: string; product: string } }>(
+        `/api/billing/payments/${id}`),
+    cancelSubscription: () => post<{ subscription: SubscriptionInfo }>("/api/billing/subscription/cancel"),
+  },
+
   admin: {
     overview: () => get<AdminOverview>("/api/admin/overview"),
+    payments: (q: ListQuery & { status?: PaymentStatus | "" } = {}) =>
+      get<Page<AdminPayment> & { checkout: CheckoutStatus }>("/api/admin/payments", { ...q }),
     users: (q: ListQuery & { q?: string } = {}) => get<Page<AdminUser>>("/api/admin/users", { ...q }),
     updateUser: (id: string, data: { is_active?: boolean; role?: Role }) =>
       patch<{ user: AdminUser }>(`/api/admin/users/${id}`, data),

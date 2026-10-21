@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
+import { PublicPricing } from "@/components/billing/public-pricing";
 import { CtaBand } from "@/components/marketing/cta-band";
 import { PageHero, Section } from "@/components/marketing/section";
-import { Notice } from "@/components/ui/notice";
 
 export const metadata: Metadata = { title: "Pricing" };
 
@@ -15,17 +15,13 @@ const HOW_CREDITS_WORK = [
 export default function PricingPage() {
   return (
     <>
-      <PageHero eyebrow="Pricing" title="Pricing is not finalised yet">
-        ASZDA Studio will use a credits-based model: you use credits when you generate, and each model
-        costs a set number of credits based on what it produces. The plans and prices are still being
-        designed, so we are not publishing any prices yet.
+      <PageHero eyebrow="Pricing" title="Simple plans in US dollars">
+        Pick a monthly plan, and top up with credit packages whenever you need more. Prices are in US dollars;
+        Kenyan shilling amounts are shown only as a guide.
       </PageHero>
       <Section>
-        <Notice tone="info" title="Payments are not active">
-          You cannot buy credits yet. Credits shown in the app are granted by ASZDA during this early
-          period. We will announce prices clearly before any payment is taken.
-        </Notice>
-        <h2 className="mt-12 font-display text-2xl font-semibold text-fg">How credits work</h2>
+        <PublicPricing />
+        <h2 className="mt-16 font-display text-2xl font-semibold text-fg">How credits work</h2>
         <ol className="mt-6 grid gap-4 sm:grid-cols-2">
           {HOW_CREDITS_WORK.map((item, i) => (
             <li key={item.title} className="rounded-xl border border-line bg-surface p-5">

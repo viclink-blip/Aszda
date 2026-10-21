@@ -66,5 +66,6 @@ Passwords, tokens and keys are never written to the audit log.
 - No automated malware scanning of uploads (type checks only).
 - Email sending in production requires an SMTP provider to be configured.
 - An external penetration test has not been done.
-- Payment security requirements apply once payments are built (webhook signatures, idempotent
-  processing, never storing card data) — see docs/CREDITS.md.
+- Payments (docs/BILLING.md): webhook signatures, idempotent processing and server-side price
+  checks are in place; card data never reaches ASZDA. A real Paystack transaction has not been
+  tested yet.

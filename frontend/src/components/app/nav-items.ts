@@ -2,6 +2,7 @@ import {
   AudioLines,
   Clapperboard,
   Coins,
+  CreditCard,
   FolderKanban,
   History,
   LayoutDashboard,
@@ -49,6 +50,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Account",
     items: [
+      { href: "/app/billing", label: "Billing", icon: CreditCard },
       { href: "/app/credits", label: "Credits", icon: Coins },
       { href: "/app/settings", label: "Settings", icon: Settings },
     ],

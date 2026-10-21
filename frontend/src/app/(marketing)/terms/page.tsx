@@ -52,9 +52,10 @@ export default function TermsPage() {
             <h2>5. Credits</h2>
             <p>
               Generations use credits. Credits are reserved when a job starts; unused credits are returned
-              when it finishes, and failed or cancelled jobs are refunded. Pricing and payments are not
-              final and not active yet; we will publish clear terms before any payment is taken. Credits
-              have no cash value unless the law requires otherwise.
+              when it finishes, and failed or cancelled jobs are refunded. Prices are listed in US dollars
+              (USD) on the Pricing page and you are charged in USD through Paystack; Kenyan shilling amounts
+              are an approximate reference only. Plans renew monthly until cancelled. Credits have no cash
+              value unless the law requires otherwise.
             </p>
 
             <h2>6. Availability</h2>
