@@ -35,8 +35,9 @@ export default function AboutPage() {
         <div className="max-w-2xl">
           <h2 className="font-display text-3xl font-semibold tracking-tight text-fg">Where we are</h2>
           <p className="mt-4 text-lg leading-relaxed text-muted">
-            ASZDA Studio is early. Script, video, animation and voice studios work today with connected
-            providers. The AI Film Director, image generation, export and payments are planned. We
+            ASZDA Studio is early. The script, image, video, animation and voice studios and the AI Film
+            Director work once their AI providers are connected. Exporting a finished film and payments are
+            planned. We
             would rather ship fewer things that work than many that do not.
           </p>
         </div>

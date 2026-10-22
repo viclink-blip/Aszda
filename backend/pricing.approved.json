@@ -1,6 +1,7 @@
 {
   "_comment": [
-    "PROPOSED credit pricing. NOT ACTIVE. Applied only with: flask --app wsgi aszda pricing-apply pricing.proposed.json --yes",
+    "APPROVED by the founder on 2026-10-22. NOT YET ACTIVE for customers: first verify provider prices, fees and",
+    "margins (docs/CREDIT_PRICING_PROPOSAL.md, section 9), then apply with: flask --app wsgi aszda pricing-apply pricing.approved.json --yes",
     "Rule used: every generation earns at least 262.5 credits per US$1 of provider cost, which keeps a",
     "50% gross margin after the 3.8% Paystack card fee even at the cheapest credit price sold (Studio Max, $0.00792/credit).",
     "Provider prices and their sources are in docs/CREDIT_PRICING_PROPOSAL.md. USD subscription and package prices are not changed here."

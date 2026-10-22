@@ -47,7 +47,8 @@ locally — `python-dotenv` loads that file). The template with every variable i
 | Variable | Default | Notes |
 |---|---|---|
 | `ASZDA_PRICING_FILE` | *(empty)* | Path to the pricing JSON. Empty = nothing is priced = no generation. See [CREDITS.md](CREDITS.md). |
-| `ASZDA_SIGNUP_CREDIT_GRANT` | `0` | Free credits for new accounts (recorded in the ledger). |
+| `ASZDA_SIGNUP_CREDIT_GRANT` | `50` | One-time free credits when a new account confirms its email (once per inbox; never expire). `0` turns it off. |
+| `ASZDA_SIGNUP_GRANT_DAILY_CAP` | `200` | At most this many sign-up grants per UTC day (`0` = no cap). |
 | `ASZDA_MAX_CREDITS_PER_JOB` | `500` | A single job costing more is refused. |
 | `ASZDA_MAX_ACTIVE_JOBS_PER_USER` | `3` | Concurrent running jobs per user. |
 | `ASZDA_DAILY_JOB_LIMIT` | `50` | Jobs per user per UTC day. |
@@ -58,12 +59,23 @@ locally — `python-dotenv` loads that file). The template with every variable i
 
 ## AI providers (server only)
 
+Setup steps for each provider: [PROVIDERS.md](PROVIDERS.md).
+
 | Variable | Provider | Notes |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Anthropic Claude | From the Claude Console. |
-| `ASZDA_ANTHROPIC_TEXT_MODELS` | | Comma-separated model IDs to offer. Default `claude-opus-5-5`. |
-| `OPENAI_API_KEY` | OpenAI text-to-speech | From the OpenAI platform. |
-| `RUNWAYML_API_SECRET` | Runway video | From the Runway developer portal. |
+| `ANTHROPIC_API_KEY` | Anthropic | From the Claude Console. |
+| `ASZDA_ANTHROPIC_TEXT_MODELS` | Anthropic | Comma-separated model IDs; the first is the default. Default `claude-opus-5-5`. |
+| `OPENAI_API_KEY` | OpenAI | From the OpenAI platform (voice and images). |
+| `ASZDA_OPENAI_TTS_MODEL` | OpenAI | Default voice model. Default `gpt-4o-mini-tts`. All OpenAI TTS models shut down on 2027-01-06. |
+| `ASZDA_OPENAI_IMAGE_MODELS` / `ASZDA_OPENAI_IMAGE_MODEL` | OpenAI | Image models offered / the default. Defaults `gpt-image-2.5-sunburst,gpt-image-2` / `gpt-image-2.5-sunburst`. |
+| `RUNWAYML_API_SECRET` | Runway | From the Runway developer portal. |
+| `ASZDA_RUNWAY_VIDEO_MODEL` | Runway | Default video model: `gen4.5` or `veo3.1_fast`. |
+| `GEMINI_API_KEY` | Google | Gemini API key from Google AI Studio. Not needed with Vertex AI. |
+| `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | Google | Use Vertex AI instead of a Gemini API key. Credentials come from `GOOGLE_APPLICATION_CREDENTIALS` (a mounted service-account file) or the platform. |
+| `ASZDA_GOOGLE_VIDEO_MODELS` / `ASZDA_GOOGLE_VIDEO_MODEL` | Google | Veo model IDs to offer / the default. **No default**: see PROVIDERS.md. |
+| `ASZDA_AI_TEXT_PROVIDER`, `ASZDA_AI_IMAGE_PROVIDER`, `ASZDA_AI_VIDEO_PROVIDER`, `ASZDA_AI_VOICE_PROVIDER` | routing | Provider used when a request names none. Defaults: `anthropic`, `openai`, `runway`, `openai`. |
+| `ASZDA_AI_TEXT_FALLBACKS`, `ASZDA_AI_IMAGE_FALLBACKS`, `ASZDA_AI_VIDEO_FALLBACKS`, `ASZDA_AI_VOICE_FALLBACKS` | routing | Comma-separated providers tried in order if the preferred one is not ready. Default for video: `google`. |
+| `ASZDA_DISABLED_PROVIDERS` | routing | Providers switched off even with a key, for example `google`. |
 | `ASZDA_PROVIDER_POLL_SECONDS` | | How often to check asynchronous jobs (default 10; Runway asks for ≥ 5). |
 | `ASZDA_PROVIDER_MAX_POLL_MINUTES` | | Give up (and refund) after this long (default 30). |
 | `ASZDA_STUCK_QUEUED_MINUTES` | `30` | A job still queued after this long (lost queue message) is failed and refunded by the sweeper. |

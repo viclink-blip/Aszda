@@ -105,6 +105,8 @@ class Scene(UUIDPrimaryKey, Timestamps, db.Model):
     shot_notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
     dialogue: Mapped[str] = mapped_column(Text, nullable=False, default="")
     duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    # Prompts written by the AI Film Director: image_prompt, video_prompt, narration.
+    ai_prompts: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
     preview_asset_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("assets.id", ondelete="SET NULL", use_alter=True,
                          name="fk_scenes_preview_asset_id_assets")

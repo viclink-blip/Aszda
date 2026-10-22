@@ -7,7 +7,6 @@ import { useCredits } from "@/components/app/credits-context";
 import { JobItem } from "@/components/generation/job-item";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { ProjectRow } from "@/components/projects/project-card";
-import { PlannedBadge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -126,9 +125,8 @@ export function DashboardView() {
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <p className="font-medium text-fg">AI Film Director</p>
-                <PlannedBadge />
               </div>
-              <p className="mt-0.5 text-sm text-muted">A guided path from story to finished film. See what is planned and what you can use today.</p>
+              <p className="mt-0.5 text-sm text-muted">Claude plans your film&apos;s characters and scenes, then each scene&apos;s image, video and voice are generated.</p>
             </div>
             <ArrowRight className="h-4 w-4 text-subtle transition-transform group-hover:translate-x-0.5" aria-hidden />
           </Link>

@@ -107,10 +107,40 @@ class BaseConfig:
     MONTHLY_CREDIT_LIMIT = _int("ASZDA_MONTHLY_CREDIT_LIMIT", 5000)
 
     # AI providers. Keys are read only on the server and never returned by the API.
+    # See docs/PROVIDERS.md for each provider's setup.
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+    # Offered Claude models; the first is the default.
     ANTHROPIC_TEXT_MODELS = _list("ASZDA_ANTHROPIC_TEXT_MODELS", "claude-opus-5-5")
     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+    OPENAI_TTS_MODEL = os.environ.get("ASZDA_OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
+    # Offered GPT Image models; ASZDA_OPENAI_IMAGE_MODEL is the default.
+    OPENAI_IMAGE_MODELS = _list("ASZDA_OPENAI_IMAGE_MODELS", "gpt-image-2.5-sunburst,gpt-image-2")
+    OPENAI_IMAGE_MODEL = os.environ.get("ASZDA_OPENAI_IMAGE_MODEL", "gpt-image-2.5-sunburst")
     RUNWAY_API_KEY = os.environ.get("RUNWAYML_API_SECRET", "")
+    RUNWAY_VIDEO_MODEL = os.environ.get("ASZDA_RUNWAY_VIDEO_MODEL", "gen4.5")
+    # Google Gemini API (Veo video). The key comes from Google AI Studio.
+    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+    # ...or Vertex AI instead (names the google-genai SDK itself uses). Google Cloud credentials
+    # come from GOOGLE_APPLICATION_CREDENTIALS or the platform; they are never read by ASZDA.
+    GOOGLE_USE_VERTEXAI = _bool("GOOGLE_GENAI_USE_VERTEXAI", False)
+    GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
+    GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "")
+    # Veo models to offer. No default: check availability first (docs/PROVIDERS.md).
+    GOOGLE_VIDEO_MODELS = _list("ASZDA_GOOGLE_VIDEO_MODELS", "")
+    GOOGLE_VIDEO_MODEL = os.environ.get("ASZDA_GOOGLE_VIDEO_MODEL", "")
+
+    # Which provider handles each kind of work when the user does not pick one, and which
+    # others may be used instead if it is not ready (see app/services/orchestrator.py).
+    AI_TEXT_PROVIDER = os.environ.get("ASZDA_AI_TEXT_PROVIDER", "anthropic")
+    AI_TEXT_FALLBACKS = _list("ASZDA_AI_TEXT_FALLBACKS", "")
+    AI_IMAGE_PROVIDER = os.environ.get("ASZDA_AI_IMAGE_PROVIDER", "openai")
+    AI_IMAGE_FALLBACKS = _list("ASZDA_AI_IMAGE_FALLBACKS", "")
+    AI_VIDEO_PROVIDER = os.environ.get("ASZDA_AI_VIDEO_PROVIDER", "runway")
+    AI_VIDEO_FALLBACKS = _list("ASZDA_AI_VIDEO_FALLBACKS", "google")
+    AI_VOICE_PROVIDER = os.environ.get("ASZDA_AI_VOICE_PROVIDER", "openai")
+    AI_VOICE_FALLBACKS = _list("ASZDA_AI_VOICE_FALLBACKS", "")
+    # Providers switched off even when their key is set (comma-separated names).
+    DISABLED_PROVIDERS = _list("ASZDA_DISABLED_PROVIDERS", "")
     PROVIDER_POLL_INTERVAL_SECONDS = _int("ASZDA_PROVIDER_POLL_SECONDS", 10)
     PROVIDER_MAX_POLL_MINUTES = _int("ASZDA_PROVIDER_MAX_POLL_MINUTES", 30)
     # Stuck-job recovery: a queued job older than this is failed and refunded...
@@ -169,6 +199,9 @@ class TestingConfig(BaseConfig):
     ANTHROPIC_API_KEY = ""
     OPENAI_API_KEY = ""
     RUNWAY_API_KEY = ""
+    GEMINI_API_KEY = ""
+    GOOGLE_USE_VERTEXAI = False
+    GOOGLE_VIDEO_MODELS: list[str] = []
     PRICING_FILE = ""
     SIGNUP_CREDIT_GRANT = 0  # tests that need it switch it on
     PROVIDER_POLL_INTERVAL_SECONDS = 0

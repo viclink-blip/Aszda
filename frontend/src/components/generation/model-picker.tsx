@@ -49,6 +49,9 @@ export function ModelPicker({ options, value, onChange }: {
                 )}
               </span>
               <span className="text-xs text-muted">{model.description}</span>
+              {model.deprecated && (
+                <span className="text-xs text-warning">{model.deprecated}</span>
+              )}
               {!available && (
                 <span id={reasonId} className="text-xs text-warning">{unavailableText(model.unavailable_reason)}</span>
               )}

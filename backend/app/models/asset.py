@@ -54,6 +54,9 @@ class Asset(UUIDPrimaryKey, Timestamps, db.Model):
     width: Mapped[int | None] = mapped_column(Integer)
     height: Mapped[int | None] = mapped_column(Integer)
     duration_seconds: Mapped[float | None] = mapped_column(Float)
+    # For generated assets: which AI provider and model produced it.
+    provider: Mapped[str | None] = mapped_column(String(50))
+    model: Mapped[str | None] = mapped_column(String(100))
 
     __table_args__ = (
         Index("ix_assets_project_created", "project_id", "created_at"),

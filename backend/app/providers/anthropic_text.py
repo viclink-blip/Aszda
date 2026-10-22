@@ -6,6 +6,7 @@ Usage metrics: input_tokens, output_tokens (as reported by the API).
 
 from __future__ import annotations
 
+import json
 from typing import Any, Literal
 
 import anthropic
@@ -54,6 +55,18 @@ TASKS: dict[str, tuple[str, str]] = {
         "movement), which characters appear, any dialogue, and a suggested length in seconds. "
         "Use Markdown.",
     ),
+    "director_plan": (
+        "Film plan",
+        "You are the AI Film Director inside ASZDA Studio. Turn the user's idea into a production "
+        "plan for a short film made with AI image, video and voice generation. Give the film a title, "
+        "a one-sentence logline and a visual style. List the characters with a visual description "
+        "specific enough to keep them consistent across generated images and videos, and a voice "
+        "description. Break the story into 3 to 12 scenes in order. For each scene write: a short "
+        "title, what happens, the shot (framing and camera movement), any spoken dialogue, any "
+        "narration, a length between 4 and 10 seconds, a self-contained image prompt for the key "
+        "frame, a self-contained video prompt describing motion and sound, and the names of the "
+        "characters who appear. Prompts must not depend on earlier scenes to be understood.",
+    ),
     "freeform": (
         "Free prompt",
         "You are a creative assistant inside ASZDA Studio, helping people plan visual and audio "
@@ -62,10 +75,60 @@ TASKS: dict[str, tuple[str, str]] = {
 }
 
 
+def _object(properties: dict[str, Any]) -> dict[str, Any]:
+    return {"type": "object", "properties": properties, "required": list(properties),
+            "additionalProperties": False}
+
+
+# Structured output for the AI Film Director (output_config.format). Numeric limits are not
+# supported in these schemas, so scene lengths are clamped after parsing.
+DIRECTOR_PLAN_SCHEMA = _object({
+    "title": {"type": "string"},
+    "logline": {"type": "string"},
+    "style": {"type": "string"},
+    "characters": {"type": "array", "items": _object({
+        "name": {"type": "string"}, "description": {"type": "string"}, "voice": {"type": "string"}})},
+    "scenes": {"type": "array", "items": _object({
+        "title": {"type": "string"}, "description": {"type": "string"}, "shot": {"type": "string"},
+        "dialogue": {"type": "string"}, "narration": {"type": "string"},
+        "duration_seconds": {"type": "integer"}, "image_prompt": {"type": "string"},
+        "video_prompt": {"type": "string"}, "characters": {"type": "array", "items": {"type": "string"}}})},
+})
+
+
+def clean_plan(plan: dict[str, Any]) -> dict[str, Any]:
+    """Clamp and trim a parsed plan so it fits ASZDA's storyboard limits."""
+    scenes = []
+    for scene in (plan.get("scenes") or [])[:12]:
+        scene = dict(scene)
+        scene["duration_seconds"] = min(10, max(4, int(scene.get("duration_seconds") or 6)))
+        scene["title"] = (scene.get("title") or "Scene")[:120]
+        scenes.append(scene)
+    return {**plan, "title": (plan.get("title") or "Untitled film")[:120],
+            "characters": (plan.get("characters") or [])[:20], "scenes": scenes}
+
+
+def plan_markdown(plan: dict[str, Any]) -> str:
+    lines = [f"# {plan['title']}", "", plan.get("logline", ""), "", f"**Style:** {plan.get('style', '')}", "",
+             "## Characters"]
+    lines += [f"- **{c.get('name')}**: {c.get('description')} (voice: {c.get('voice')})" for c in plan["characters"]]
+    lines += ["", "## Scenes"]
+    for i, s in enumerate(plan["scenes"], 1):
+        lines += [f"### {i}. {s['title']} ({s['duration_seconds']} s)", s.get("description", ""),
+                  f"*Shot:* {s.get('shot', '')}"]
+        if s.get("dialogue"):
+            lines.append(f"*Dialogue:* {s['dialogue']}")
+        if s.get("narration"):
+            lines.append(f"*Narration:* {s['narration']}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 class TextParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    task: Literal["story_concept", "script", "characters", "scene_breakdown", "freeform"] = "freeform"
+    task: Literal["story_concept", "script", "characters", "scene_breakdown", "director_plan",
+                  "freeform"] = "freeform"
     prompt: str = Field(min_length=1, max_length=12000)
     max_output_tokens: int = Field(default=4000, ge=500, le=16000)
     effort: Literal["low", "medium", "high"] = "medium"
@@ -90,6 +153,29 @@ class AnthropicTextAdapter(ProviderAdapter):
     name = "anthropic"
     label = "Anthropic Claude"
     credential_env = "ANTHROPIC_API_KEY"
+    connection_test = ("Reads the model information of the configured Claude models (GET /v1/models/{id}). "
+                       "Nothing is generated.")
+
+    def params_for_brief(self, model: ModelSpec, brief: dict[str, Any]) -> dict[str, Any]:
+        return {"task": "freeform", "prompt": (brief.get("prompt") or "")[:12000]}
+
+    def test_connection(self) -> str:
+        client = self._client().with_options(timeout=20.0, max_retries=0)
+        found = []
+        for spec in self.model_specs():
+            try:
+                info = client.models.retrieve(spec.id)
+            except anthropic.NotFoundError as exc:
+                raise ProviderError(f"The key works, but model '{spec.id}' is not available.",
+                                    code="model_unavailable") from exc
+            except (anthropic.AuthenticationError, anthropic.PermissionDeniedError) as exc:
+                raise ProviderError("The Anthropic credential was rejected.", code="provider_auth_failed") from exc
+            except (anthropic.APIConnectionError, anthropic.APITimeoutError) as exc:
+                raise ProviderError("Anthropic could not be reached.", code="provider_unavailable") from exc
+            except anthropic.APIStatusError as exc:
+                raise ProviderError(f"Anthropic answered {exc.status_code}.", code="provider_error") from exc
+            found.append(info.id)
+        return "Credential accepted; models available: " + ", ".join(found)
 
     def is_configured(self) -> bool:
         return bool(current_app.config.get("ANTHROPIC_API_KEY"))
@@ -118,12 +204,15 @@ class AnthropicTextAdapter(ProviderAdapter):
     def submit(self, ctx: JobContext) -> ProviderOutcome:
         params = ctx.params
         title, system = TASKS[params["task"]]
+        output_config: dict[str, Any] = {"effort": params["effort"]}
+        if params["task"] == "director_plan":
+            output_config["format"] = {"type": "json_schema", "schema": DIRECTOR_PLAN_SCHEMA}
         kwargs: dict[str, Any] = {
             "model": ctx.model,
             "max_tokens": params["max_output_tokens"],
             "system": system,
             "messages": [{"role": "user", "content": params["prompt"]}],
-            "output_config": {"effort": params["effort"]},
+            "output_config": output_config,
         }
         if ctx.model in _FALLBACK_MODELS:
             # If a safety classifier declines the request, Anthropic retries it on its
@@ -153,10 +242,27 @@ class AnthropicTextAdapter(ProviderAdapter):
         if not text:
             raise ProviderError("Claude returned no text.", code="empty_result", usage=usage)
         truncated = response.stop_reason == "max_tokens"
+        if params["task"] == "director_plan":
+            try:
+                plan = clean_plan(json.loads(text))
+            except (ValueError, TypeError, AttributeError) as exc:
+                # Usually a plan cut off by the length limit: the tokens were still used.
+                raise ProviderError("Claude's plan was incomplete. Try a larger maximum length.",
+                                    code="incomplete_plan", usage=usage) from exc
+            markdown = plan_markdown(plan)
+            return ProviderOutcome(
+                status="completed",
+                result={"plan": plan, "text": markdown, "title": title, "model": response.model,
+                        "provider_reported": {"usage": usage},
+                        "stop_reason": response.stop_reason},
+                outputs=[ProviderOutput(kind=AssetKind.TEXT, mime_type="text/markdown",
+                                        display_name=f"{plan['title'][:80]} - plan.md",
+                                        data=markdown.encode("utf-8"))],
+                usage=usage)
         return ProviderOutcome(
             status="completed",
             result={"text": text, "title": title, "truncated": truncated, "model": response.model,
-                    "stop_reason": response.stop_reason},
+                    "stop_reason": response.stop_reason, "provider_reported": {"usage": usage}},
             outputs=[ProviderOutput(kind=AssetKind.TEXT, mime_type="text/markdown",
                                     display_name=f"{title}.md", data=text.encode("utf-8"))],
             usage=usage,

@@ -1,7 +1,31 @@
 # Credits, pricing and usage limits
 
-Credits are ASZDA's **internal usage units**. They are separate from real money: a future payment
-(once a payment provider is chosen) will *buy* credits, recorded as a `purchase` ledger entry.
+Credits are ASZDA's **internal usage units**. They are separate from real money: a verified
+Paystack payment *grants* credits through a ledger entry.
+
+## Two kinds of credits (policy approved 2026-10-22)
+
+| | Plan credits | Purchased credits |
+|---|---|---|
+| Come from | A subscription's monthly allowance | Credit packages, the one-time sign-up grant, admin grants |
+| Expire | **At the end of the billing period they belong to; no rollover** | Never |
+| Spent | **First** (they expire soonest) | After plan credits |
+
+- **Balances.** `credit_accounts` keeps `plan_balance`, `purchased_balance` and `plan_credits_expire_at`. The database enforces `balance = plan_balance + purchased_balance`. Every ledger row records its split (`plan_amount` and `purchased_amount`, which add up to `amount`).
+- **New billing period.** A subscription payment (first or renewal) expires the previous period's unused plan credits, recorded as `expire`. It then adds the new allowance (`plan_allowance`), valid until the period end. Paystack's `next_payment_date` moves that end date when it differs.
+- **When expiry happens.** Expiry is applied whenever a balance is read or spent, so an ended period's credits can never be used. The hourly scheduler also tidies up stored balances.
+- **Generation charges.** A job's actual cost comes from its reservation, plan credits first. Anything unused goes back to the part it came from.
+- **Refunds after a period ends.** Suppose the billing period ends while a job is running. Plan credits returned afterwards are returned and **expired again immediately**, and both rows are recorded. A refund therefore never turns expired plan credits into lasting ones. Purchased credits are always returned.
+- **Credits held before this change.** All existing credits were migrated as purchased credits (never expire), so nobody lost anything.
+- **What customers see.** The Credits and Billing pages show both balances, when plan credits expire, and the spending order.
+
+## Free sign-up credits
+
+- **Amount and timing.** 50 credits (`ASZDA_SIGNUP_CREDIT_GRANT`) are given **once**, when a new account first confirms its email address. A real inbox is needed. They are purchased-type credits, so they never expire.
+- **Once per inbox.** The claim is stored per *canonical* address: lower-case, "+tag" removed, and dots removed for Gmail. The claim is kept when the account is deleted, so deleting and recreating an account, or using an alias of the same inbox, gets nothing.
+- **Duplicate events.** Retries, a second verification link, and parallel verification requests cannot grant twice. The claim row is unique, and so is the ledger reference `signup:<user>`.
+- **Daily cap.** At most `ASZDA_SIGNUP_GRANT_DAILY_CAP` grants (200) are given per UTC day. This is a soft runaway guard; parallel sign-ups can exceed it by a few.
+- **Not covered.** There is no disposable-email blocklist and no per-IP limit; the web app's proxy does not forward the client IP yet.
 
 ## The ledger
 Every change to a balance writes a row to `credit_transactions` in the same database transaction,
@@ -9,8 +33,10 @@ so the balance always equals the sum of the ledger.
 
 | Type | Sign | When |
 |---|---|---|
-| `grant` | + | An admin (or the sign-up grant) gives credits |
-| `purchase` | + | *(future)* credits bought through a verified payment |
+| `grant` | + | An admin, or the one-time sign-up grant, gives credits (purchased, never expire) |
+| `purchase` | + | A credit package paid through a verified payment (purchased, never expire) |
+| `plan_allowance` | + | A subscription billing period starts (plan credits, valid until the period ends) |
+| `expire` | − | Unused plan credits removed at the end of their billing period |
 | `reserve` | − | A job is queued: its maximum estimated cost is held |
 | `release` | + | A job succeeded: the unused part of the reservation comes back |
 | `refund` | + | A job failed or was cancelled: the reservation comes back (minus usage the provider actually billed) |
@@ -30,8 +56,8 @@ Balances are changed under a row lock, so two parallel requests cannot spend the
    costs plus plan and package credits) into Admin → Pricing. Without `--yes` it only previews.
 
 A model with no price cannot be used. The proposed values are in
-[CREDIT_PRICING_PROPOSAL.md](CREDIT_PRICING_PROPOSAL.md) and `backend/pricing.proposed.json`
-(**not active until approved**).
+[CREDIT_PRICING_PROPOSAL.md](CREDIT_PRICING_PROPOSAL.md) and `backend/pricing.approved.json`
+(approved 2026-10-22, **not active until the verification checklist is done and it is applied**).
 
 Pricing-file format (also used for generation entries in a pricing document):
 
@@ -74,12 +100,28 @@ limits on job creation. The browser never decides a cost or a balance.
 | Provider refused the content but billed tokens (e.g. Claude refusal) | the reported usage only |
 | Temporary error → automatic retry (only before anything reached the provider) | charged once at most |
 | Provider took longer than `ASZDA_PROVIDER_MAX_POLL_MINUTES` | 0 — cancelled at provider if possible, refunded |
+| Provider's safety system blocked it (Runway `SAFETY.*`, OpenAI `moderation_blocked`, Google safety filter) | 0 — full refund. Runway still bills ASZDA, so that cost is recorded in `provider_costs` as `absorbed_by_aszda` and audited |
 | User cancelled | 0 — refunded |
 | Lost queue message or crashed worker (stuck job) | 0 — the sweeper fails and refunds it (every 5 minutes) |
 | Success | actual usage, never more than reserved |
 
-> Note for video providers: Runway reports a cost on failed tasks. ASZDA does not pass provider
-> failures on to users. Watch the admin usage report for provider-side costs you absorb.
+## Provider costs and reconciliation
+
+Each settled job writes one `provider_costs` row (unique per job, so repeated polls cannot record it twice). It holds:
+- the outcome: completed, safety block, or failed but billed;
+- the usage;
+- the **estimated** USD, from the provider prices entered in Admin → Pricing, or empty when none are entered;
+- any figure the provider itself reported, such as OpenAI image tokens or Anthropic tokens;
+- the credits charged to the customer;
+- whether ASZDA absorbed the cost.
+
+Admin → Providers → Provider costs compares these with the credits charged. They are estimates, not invoices. Compare them with each provider's billing dashboard.
+
+## Concurrency and duplicates (tested)
+
+- Six parallel requests with credit for one job: one runs, five get 402. The test also proves the row locks are what prevent it: with the locks removed, two jobs got through.
+- Parallel requests with the same Idempotency-Key create one job and one reservation. They are re-checked under the account lock, which also prevents a database deadlock with the worker settling the original job (regression test, repeated 20 times).
+- Spending across plan and purchased credits, refunds, sign-up grants and safety-block refunds are each tested for duplicates and parallel delivery.
 
 ## Payments
 

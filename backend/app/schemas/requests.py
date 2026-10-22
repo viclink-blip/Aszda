@@ -160,8 +160,9 @@ class AssetUpdateIn(Strict):
 # ---- Generation ---------------------------------------------------------------------
 
 class GenerationIn(Strict):
-    provider: str = Field(min_length=1, max_length=50)
-    model: str = Field(min_length=1, max_length=100)
+    # Both optional: without them the orchestrator picks the configured provider for `kind`.
+    provider: str | None = Field(default=None, min_length=1, max_length=50)
+    model: str | None = Field(default=None, min_length=1, max_length=100)
     kind: GenerationKind
     params: dict[str, Any] = Field(default_factory=dict)
     project_id: uuid.UUID | None = None
@@ -174,8 +175,8 @@ class GenerationIn(Strict):
 
 
 class QuoteIn(Strict):
-    provider: str = Field(min_length=1, max_length=50)
-    model: str = Field(min_length=1, max_length=100)
+    provider: str | None = Field(default=None, min_length=1, max_length=50)
+    model: str | None = Field(default=None, min_length=1, max_length=100)
     kind: GenerationKind
     params: dict[str, Any] = Field(default_factory=dict)
 

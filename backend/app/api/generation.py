@@ -16,7 +16,7 @@ from app.providers import registry
 from app.schemas.requests import GenerationIn, QuoteIn
 from app.schemas.serializers import job_out
 from app.security.auth import current_user, login_required
-from app.services import generation_service, pricing
+from app.services import generation_service, orchestrator, pricing
 
 bp = Blueprint("generation", __name__, url_prefix="/api")
 
@@ -28,6 +28,8 @@ def provider_catalog() -> list[dict]:
         models = []
         for spec in adapter.model_specs():
             price = pricing.price_for(adapter.name, spec.id)
+            reason = orchestrator.unavailable_reason(adapter, spec)
+            default = adapter.default_model(spec.kind)
             models.append({
                 "id": spec.id, "label": spec.label, "kind": spec.kind.value,
                 "description": spec.description,
@@ -37,16 +39,16 @@ def provider_catalog() -> list[dict]:
                             "minimum_credits": price.minimum_credits} if price else None,
                 "deprecated": spec.deprecated,
                 "shutdown_on": spec.shutdown_on.isoformat() if spec.shutdown_on else None,
-                # Usable only when the API key is set, a credit price is configured and the
-                # provider has not shut the model down.
-                "available": configured and price is not None and not spec.is_retired(),
-                "unavailable_reason": (
-                    "provider_not_configured" if not configured else
-                    "model_retired" if spec.is_retired() else
-                    "pricing_not_configured" if price is None else None),
+                "is_default": default is not None and default.id == spec.id,
+                # Usable only when the provider is configured and switched on, a credit price
+                # is configured and the provider has not shut the model down.
+                "available": reason is None,
+                "unavailable_reason": reason,
             })
         catalog.append({
             "name": adapter.name, "label": adapter.label, "configured": configured,
+            "enabled": not orchestrator.provider_disabled(adapter.name),
+            "capabilities": [k.value for k in orchestrator.kinds_of(adapter)],
             "supports_cancel": adapter.supports_cancel, "models": models,
         })
     return catalog
@@ -57,6 +59,14 @@ def provider_catalog() -> list[dict]:
 @login_required
 def list_providers():
     return jsonify({"providers": provider_catalog()})
+
+
+@bp.get("/ai/capabilities")
+@doc("For each kind of work (text, image, video, voice): which provider and model would run it",
+     tags=["Generation"])
+@login_required
+def ai_capabilities():
+    return jsonify({"capabilities": orchestrator.capabilities()})
 
 
 @bp.post("/generation-jobs/quote")

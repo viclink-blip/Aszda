@@ -14,13 +14,41 @@ import { LoadingRows, Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/hooks/use-api";
 import { api } from "@/lib/api";
 import { CREDIT_TX_INFO, formatDate, formatNumber } from "@/lib/format";
-import type { CreditTransaction, CreditTxType } from "@/lib/types";
+import type { CreditAccount, CreditTransaction, CreditTxType } from "@/lib/types";
 
 const PAGE_SIZE = 25;
 
 const TX_TONES: Record<CreditTxType, Tone> = {
-  grant: "success", purchase: "success", reserve: "info", release: "neutral", refund: "neutral", adjustment: "warning",
+  grant: "success", purchase: "success", plan_allowance: "success", expire: "neutral", reserve: "info",
+  release: "neutral", refund: "neutral", adjustment: "warning",
 };
+
+/** Plan credits (expire, spent first) and purchased credits (never expire), shown separately. */
+export function BalanceSplit({ account }: { account: CreditAccount }) {
+  return (
+    <dl className="mt-4 flex flex-col gap-3 border-t border-line pt-4 text-sm">
+      <div>
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="text-muted">Plan credits</dt>
+          <dd className="font-mono text-fg tabular-nums">{formatNumber(account.plan_balance)}</dd>
+        </div>
+        <p className="mt-0.5 text-xs text-subtle">
+          {account.plan_credits_expire_at
+            ? <>Expire {formatDate(account.plan_credits_expire_at, true)}. Unused plan credits do not roll over.</>
+            : "From a subscription plan. They expire at the end of each billing period."}
+        </p>
+      </div>
+      <div>
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="text-muted">Purchased and bonus credits</dt>
+          <dd className="font-mono text-fg tabular-nums">{formatNumber(account.purchased_balance)}</dd>
+        </div>
+        <p className="mt-0.5 text-xs text-subtle">Credit packages and free credits. They never expire.</p>
+      </div>
+      <p className="text-xs text-subtle">Generations use plan credits first, then purchased credits.</p>
+    </dl>
+  );
+}
 
 /** The ledger as a table (desktop) or a list (mobile). */
 export function LedgerTable({ items }: { items: CreditTransaction[] }) {
@@ -65,8 +93,8 @@ export function CreditsView() {
       <PageHeader title="Credits" description="Credits pay for generations. Here is your balance and every change to it." />
       <Notice tone="info" title="Need more credits?" className="mb-6"
         action={<ButtonLink href="/app/billing" size="sm" variant="secondary">Go to billing</ButtonLink>}>
-        Plans and credit packages are priced in US dollars on the Billing page. Credits bought there appear in
-        this ledger as &ldquo;Purchase&rdquo;.
+        Plans and credit packages are priced in US dollars on the Billing page. Plan credits are given each billing
+        period and expire at its end; package credits never expire.
       </Notice>
 
       {error && !data ? (
@@ -98,6 +126,7 @@ export function CreditsView() {
                   <Skeleton className="mt-2 h-10 w-24" />
                 )}
                 <p className="mt-1 text-sm text-muted">credits</p>
+                {data && <BalanceSplit account={data.account} />}
               </CardBody>
             </Card>
             <Card>

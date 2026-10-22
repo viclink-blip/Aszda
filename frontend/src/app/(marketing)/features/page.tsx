@@ -2,16 +2,22 @@ import type { Metadata } from "next";
 import { CtaBand } from "@/components/marketing/cta-band";
 import { PageHero, Section, SectionHeading } from "@/components/marketing/section";
 import { Badge, PlannedBadge } from "@/components/ui/badge";
-import { PLANNED, STUDIOS } from "@/lib/product";
+import { PLANNED, STUDIOS, type Studio } from "@/lib/product";
 
 export const metadata: Metadata = { title: "Features" };
 
-const STUDIO_DETAILS: Record<string, string[]> = {
+const STUDIO_DETAILS: Record<Studio["slug"], string[]> = {
   script: [
     "Story concepts: logline, premise, tone and possible directions",
     "Script drafts in screenplay structure",
     "Character sheets with consistent visual descriptions",
     "Scene breakdowns with shots, dialogue and suggested lengths",
+  ],
+  image: [
+    "Character designs, key frames and storyboard images from a description",
+    "Square, landscape or portrait; low, medium or high quality",
+    "Transparent backgrounds in PNG or WebP",
+    "Results saved to your project as image assets",
   ],
   video: [
     "Text-to-video from a written prompt",
@@ -30,6 +36,12 @@ const STUDIO_DETAILS: Record<string, string[]> = {
     "Several voices, audio formats and speaking speed",
     "Speaking-style instructions on supported models",
     "No voice cloning: only the provider's built-in voices",
+  ],
+  director: [
+    "Claude plans the title, characters and 3 to 12 scenes from your idea",
+    "You review the plan before it is added to your project's storyboard",
+    "Generate each scene's key frame, video and voice with one click each",
+    "Not yet: joining the scenes into one exported film",
   ],
 };
 

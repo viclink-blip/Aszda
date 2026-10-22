@@ -1,76 +1,189 @@
 # AI providers
 
-ASZDA talks to AI vendors only through adapters in `backend/app/providers/`. Each adapter
-declares its models, the kind of output (text, speech, video...), the settings each model really
-supports, how to estimate usage, and how to submit/poll/cancel.
+ASZDA talks to AI vendors only through adapters in `backend/app/providers/`. Each adapter declares:
+- its models and what kind of work each does (text, image, video, speech);
+- the settings each model really supports;
+- how to estimate usage (the credit reservation);
+- how to submit, poll and cancel a job;
+- which settings it needs;
+- a connection test that generates nothing.
 
-A model is **available** to users only when both are true:
-1. its API key environment variable is set, and
-2. it has a credit price in the pricing file (see [CREDITS.md](CREDITS.md)).
+The **orchestrator** (`backend/app/services/orchestrator.py`) decides which adapter handles a request.
 
-`flask --app wsgi aszda check-pricing` shows the state of every model.
+| Provider | Adapter | Offers | Credential(s) |
+|---|---|---|---|
+| Anthropic | `anthropic_text.py` | Text: scripts, story development, characters, scene breakdowns, AI Film Director plans (structured JSON) | `ANTHROPIC_API_KEY` |
+| OpenAI | `openai_speech.py` + `openai_image.py` | Voice (text-to-speech) and images (GPT Image) | `OPENAI_API_KEY` |
+| Runway | `runway_video.py` | Video: text-to-video and image-to-video (`gen4.5`, `veo3.1_fast`) | `RUNWAYML_API_SECRET` |
+| Google | `google_video.py` | Video with sound: text-to-video and first-frame image-to-video (Veo) | `GEMINI_API_KEY`, or Vertex AI settings |
 
-## How the facts were verified (2026-10-21)
-The vendors' documentation websites could not be opened from the build environment. Facts were
-taken from each vendor's **official SDK source code** on GitHub (generated from their API specs):
-`anthropics` SDK bundled guidance for Claude, `openai/openai-python`, `runwayml/sdk-python`.
-Anything not confirmed is listed below. **Before going live, re-check against the vendors'
-current documentation** and run one real job per model in staging.
+## Status: implemented, configured, tested
 
-## Anthropic Claude — `anthropic_text.py`
-- Uses the official `anthropic` Python SDK (Messages API), credential `ANTHROPIC_API_KEY`.
-- Model: `claude-opus-5-5` by default (`ASZDA_ANTHROPIC_TEXT_MODELS` to change).
-- Tasks: story concept, script draft, character sheet, scene breakdown, free prompt.
-- Settings: task, prompt (≤ 12,000 chars), maximum output tokens (500–16,000), effort (low/medium/high).
-- Requests opt in to Anthropic's server-side refusal fallback (`fallbacks: "default"`, beta
-  `server-side-fallback-2026-07-01`). A refusal (`stop_reason: "refusal"`) fails the job and
-  charges only the usage Anthropic reports.
-- Usage metrics: `input_tokens`, `output_tokens`. `max_tokens` caps all output, so the estimate
-  is a true upper bound.
-- Verified live in this build: a job travelled through the real queue and reached Anthropic's API,
-  which rejected a deliberately invalid key (401) → job failed and credits were refunded.
-  A successful generation has **not** been run (no key was available).
+| | Code implemented | Automated tests (mocked provider) | Configured here | Real request succeeded |
+|---|---|---|---|---|
+| Anthropic text and Director plan | Yes | Yes | No key in the build environment | **Not yet.** Earlier, one live call was correctly rejected for an invalid key. |
+| OpenAI voice | Yes | Yes | No | Not yet |
+| OpenAI images | Yes | Yes | No | Not yet |
+| Runway video | Yes | Yes | No | Not yet |
+| Google Veo video | Yes | Yes | No | Not yet. See the model warning below. |
 
-## OpenAI text-to-speech — `openai_speech.py`
-- `POST https://api.openai.com/v1/audio/speech`, `Authorization: Bearer $OPENAI_API_KEY`.
-- Models: `gpt-4o-mini-tts`, `tts-1`, `tts-1-hd`. Voices: alloy, ash, ballad, coral, echo, sage,
-  shimmer, verse, marin, cedar, fable, onyx, nova. Formats offered: mp3, wav, opus, aac, flac.
-  Speed 0.25–4.0. Input ≤ 4,096 characters. `instructions` only for `gpt-4o-mini-tts`.
-- Usage metric: `characters`.
-- **Not verified**: which voices each model supports (OpenAI says availability can differ by model);
-  the default output format. Provider USD pricing is not configured.
-- Voice cloning is not offered and must not be added without consent and safeguards.
+"Implemented" means the code and tests exist. It does **not** mean a real generation has been
+produced. After adding a key, run the connection test and the manual live tests (below).
 
-## Runway video — `runway_video.py`
-- Base URL `https://api.dev.runwayml.com`, `Authorization: Bearer $RUNWAYML_API_SECRET`,
-  header `X-Runway-Version: 2024-11-06`.
-- `POST /v1/text_to_video`, `POST /v1/image_to_video`, `GET /v1/tasks/{id}`, `DELETE /v1/tasks/{id}`.
-- Models offered:
-  - `gen4.5`: prompt required (≤ 1,000 chars), duration 2–10 s; ratios 1280:720 / 720:1280
-    (text) and also 1104:832, 832:1104, 960:960, 1584:672 (image).
-  - `veo3.1_fast`: ratios 1280:720, 720:1280, 1080:1920, 1920:1080; duration 4/6/8 s; optional audio.
-- Reference images are sent as base64 data URIs (≤ 5 MB, PNG/JPEG/WebP).
-- Task statuses: PENDING, THROTTLED, RUNNING, SUCCEEDED (output = list of URLs), FAILED, CANCELLED.
-  Polled every `ASZDA_PROVIDER_POLL_SECONDS` (Runway asks for ≥ 5 s). Outputs are downloaded over
-  HTTPS (streamed, size-capped) into ASZDA storage because Runway's URLs are temporary.
-- Usage metrics: `video_seconds`, `video_seconds_with_audio`.
-- **Not verified**: the exact create-response shape (the adapter requires an `id` and fails clearly
-  otherwise); Runway's credit prices (search results suggested gen4.5 ≈ 12 credits/s and
-  veo3.1_fast ≈ 10–15 credits/s, 1 credit = $0.01 — confirm on Runway's pricing page).
+## When a model can be used
 
-## Considered and not built
-- **OpenAI Sora (video)**: OpenAI's SDK marks the Videos API deprecated with shutdown on
-  2026-09-24 — already past at build time.
-- **ElevenLabs (voice)**: endpoints were confirmed but the current model list conflicted between
-  sources; add once verified.
-- **Image generation**: no provider chosen yet.
+A model is offered for paid generation only when **all** of these are true:
+1. The provider's settings are complete. Admin → Providers lists missing variable **names**, never values.
+2. The provider is not switched off (`ASZDA_DISABLED_PROVIDERS`).
+3. The model has a credit price (Admin → Pricing or the pricing file).
+4. The provider has not retired the model (a retirement date is set for OpenAI TTS).
 
-## Adding a provider
-1. Read the vendor's official docs. Do not guess endpoints, model IDs or parameters.
-2. Create `app/providers/<vendor>_<kind>.py` subclassing `ProviderAdapter`:
-   `model_specs()`, a pydantic params model + `SettingField`s, `estimate_usage()` (upper bound),
-   `submit()`, and `poll()`/`cancel()` if the vendor is asynchronous. Map errors to
-   `ProviderError(retryable=...)` with `classify_http_status`.
-3. Register it in `app/providers/registry.py`.
-4. Add the credential to `.env.example` and `docs/ENVIRONMENT.md`, and prices to the pricing file.
-5. Add unit tests with mocked HTTP in `tests/test_providers.py` (never call the paid API in tests).
+A missing key never crashes anything: the provider shows as "Not configured" and its models are unavailable.
+
+## Routing (the orchestrator)
+
+- **Choosing the provider.** The user, or the studio's model picker, may pick a provider and model; exactly that is used. If it cannot run, the request is refused with the reason, and there is **no silent switch**.
+- **When nobody picks.** `ASZDA_AI_TEXT_PROVIDER`, `_IMAGE_`, `_VIDEO_` and `_VOICE_` choose the provider, using its default model.
+- **Fallback.** If that provider cannot run, the providers in `ASZDA_AI_<KIND>_FALLBACKS` are tried in order. Only providers that offer that kind of work are candidates. The choice is stored on the job (`usage.routing`: requested, chosen, fallback used, skipped with reasons).
+- **No fallback after a failure.** Fallback happens only before the job is created. A job that fails at its provider is never resent to another provider, so a request can never be billed twice.
+- **Provenance.** Every generated asset records `provider` and `model`. Different providers can be used in the same project.
+- **Checking the routing.** `GET /api/ai/capabilities` shows what each kind of work would use now. Admin → Providers shows it as well.
+
+## Health checks (Admin → Providers)
+
+For each provider the page shows:
+- whether its credentials and required settings are present (names only);
+- whether it is switched on;
+- its capabilities and configured models, including priced, default and deprecated;
+- the last connection test: when it ran, the result, the last success and the latest error.
+
+**Test connection** runs only when an admin clicks it. It never generates anything:
+
+| Provider | Test |
+|---|---|
+| Anthropic | `GET /v1/models/{id}` for each configured model |
+| OpenAI | `GET /v1/models/{id}` for the default voice and image models |
+| Runway | `GET /v1/organization`, which returns the API credit balance |
+| Google | `models.get` for each configured Veo model |
+
+None of the providers documents a charge for these lookups. None of them explicitly says they are
+free either. A test that a provider documents as billable must be confirmed before it runs
+(`connection_test_may_charge`); none is marked that way today.
+
+## Setup, provider by provider
+
+After changing `.env`, restart **both** the API and the worker (`docker compose up -d api worker`).
+Then open Admin → Providers → Test connection, and set credit prices in Admin → Pricing.
+
+### Anthropic (you already have this key)
+
+1. Create a key at console.anthropic.com → API keys.
+2. Set `ANTHROPIC_API_KEY=` in `.env`.
+3. Optional: set `ASZDA_ANTHROPIC_TEXT_MODELS` (comma-separated; the first is the default; default `claude-opus-5-5`).
+4. Price `anthropic:claude-opus-5-5` (the approved proposal already includes it).
+
+Details:
+- Uses the official `anthropic` SDK (Messages API).
+- Requests opt in to the server-side refusal fallback (`fallbacks: "default"`). A refusal fails the job and charges only the tokens Anthropic reports.
+- Director plans use structured outputs (`output_config.format` with a JSON schema), and scene lengths are clamped to 4–10 s. A plan cut off by the length limit fails as `incomplete_plan`; its tokens were used, so they are charged.
+- Usage metrics: `input_tokens`, `output_tokens`. `max_tokens` caps all output, so the reservation is a true upper bound.
+
+### OpenAI (voice and images)
+
+1. Create a key at platform.openai.com → API keys.
+2. Set `OPENAI_API_KEY=`. Image generation may require organization verification in OpenAI's dashboard.
+3. Optional settings:
+   - `ASZDA_OPENAI_TTS_MODEL` (default `gpt-4o-mini-tts`);
+   - `ASZDA_OPENAI_IMAGE_MODELS` (default `gpt-image-2.5-sunburst,gpt-image-2`);
+   - `ASZDA_OPENAI_IMAGE_MODEL` (default `gpt-image-2.5-sunburst`).
+4. Price the voice models (approved) and the image models. **Image credit prices are not set yet.**
+
+Voice: `POST /v1/audio/speech`
+- **All OpenAI TTS models are deprecated, with shutdown on 2027-01-06**: `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts` and its dated snapshots. Source: OpenAI's deprecations page, read through search summaries on 2026-10-22.
+- ASZDA shows the deprecation and refuses the models from that date.
+- OpenAI's suggested successor (`gpt-realtime-2.1-mini`) uses the Realtime API, not `/v1/audio/speech`. It is **not implemented**. A new voice adapter is needed before January 2027.
+- Voices: `tts-1` and `tts-1-hd` have 9 (alloy, ash, coral, echo, fable, onyx, nova, sage, shimmer). `gpt-4o-mini-tts` adds ballad, verse, marin and cedar. ASZDA validates the voice per model; the default is marin, or alloy for the older models.
+- Speaking-style instructions work only with `gpt-4o-mini-tts`.
+
+Images: `POST /v1/images/generations`, using the request shape from the official `openai-python` SDK 3.36.1
+- Models: `gpt-image-2.5-sunburst` (OpenAI's recommended model per its DALL-E page, search summary), `gpt-image-2`, and others via the setting. DALL-E was retired on 2026-05-12 and is not offered.
+- Settings: size 1024×1024, 1536×1024 or 1024×1536; quality low, medium or high; PNG, JPEG or WebP; background auto, opaque or transparent. A transparent background needs PNG or WebP.
+- Usage metrics for credits: `images_low`, `images_medium`, `images_high` (one image per job).
+- OpenAI bills images by tokens. Its reported token usage is stored with each job (`provider_costs.provider_reported`).
+- **Image prices are not confirmed.**
+  - gpt-image-2.5: about $30 per 1M image-output tokens (search summary).
+  - gpt-image-1.5 per-image prices: $0.009–$0.20, depending on size and quality (search summary).
+  - Tokens per image for gpt-image-2 and 2.5: not confirmed.
+- A `moderation_blocked` error fails the job as `content_refused`, and the customer is fully refunded.
+
+### Runway (video)
+
+1. Create a key at dev.runwayml.com and add API credits. These are separate from Runway web-app credits.
+2. Set `RUNWAYML_API_SECRET=`. Optional: `ASZDA_RUNWAY_VIDEO_MODEL` (`gen4.5` or `veo3.1_fast`).
+3. Price both models (approved).
+
+Details:
+- Base URL `https://api.dev.runwayml.com`, header `X-Runway-Version: 2024-11-06`. Model IDs and parameters were rechecked against the official `runwayml` SDK on 2026-10-22.
+- Jobs are asynchronous: `POST /v1/text_to_video` or `POST /v1/image_to_video`, then `GET /v1/tasks/{id}`, which ASZDA polls. `DELETE` cancels.
+- Runway offers no webhooks that ASZDA uses.
+- **Safety blocks** (`failureCode` starting with `SAFETY.`): Runway charges for moderated generations. The customer gets a full refund. The Runway charge is recorded as an ASZDA cost (`provider_costs`, `absorbed_by_aszda`, audited). The job cannot be retried unchanged.
+- **Price to verify**: Runway's pricing page says gen4.5 costs 12 credits/s ($0.12/s), but its models page says "from $0.15/s" (search summaries). The approved credit price assumes $0.12/s.
+
+### Google Veo (video)
+
+> **Read this first.** On 2026-10-22, Google's docs (read through search summaries) listed the
+> Gemini API Veo 3.1 **preview** models with a shutdown date of that same day:
+> `veo-3.1-generate-preview`, `veo-3.1-fast-generate-preview` and `veo-3.1-lite-generate-preview`.
+> The replacement named is "Gemini Omni Flash", whose API is not documented as Veo-compatible.
+> The GA model `veo-3.1-generate-001` was listed only for **Vertex AI**. So ASZDA ships **no
+> default Veo model**: you choose the model IDs your account can actually use.
+
+Option A, Gemini API:
+1. Create a key in Google AI Studio and set `GEMINI_API_KEY=`.
+2. Set `ASZDA_GOOGLE_VIDEO_MODELS=` to the model IDs to offer, and optionally `ASZDA_GOOGLE_VIDEO_MODEL=` as the default.
+3. Run Test connection. It looks up each model and fails clearly if the model does not exist for your key.
+
+Option B, Vertex AI (Google Cloud):
+1. Set `GOOGLE_GENAI_USE_VERTEXAI=true`, `GOOGLE_CLOUD_PROJECT=` and `GOOGLE_CLOUD_LOCATION=`, for example `us-central1`.
+2. Give the API and worker Google Cloud credentials. Usually `GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcp.json` points to a service-account key with the Vertex AI User role, mounted into both containers. Never commit it.
+3. Set `ASZDA_GOOGLE_VIDEO_MODELS=veo-3.1-generate-001` (or the models you enable), then run Test connection.
+
+Details:
+- Uses the official `google-genai` SDK (2.32.0): `models.generate_videos`, `operations.get` and `files.download`. Videos returned inline (`video_bytes`, as on Vertex) are stored directly.
+- Vertex results that come back only as a Cloud Storage link are not downloaded; the job fails clearly.
+- Settings:
+  - prompt, negative prompt, optional first-frame image;
+  - aspect ratio 16:9 or 9:16;
+  - duration 4, 6 or 8 s, and resolution 720p or 1080p (1080p only with 8 s);
+  - people (adults only, none, or all for text-to-video only; some regions allow adults only).
+- The Gemini API rejects `seed`, `generate_audio` and `fps`, so they are not offered. Veo 3.x adds audio itself.
+- Usage metrics: `video_seconds_720p`, `video_seconds_1080p`.
+- Search-summary prices (paid tier, per second): Veo 3.1 $0.40; Veo 3.1 Fast $0.10 (720p), $0.12 (1080p); Veo 3.1 Lite $0.05/$0.08. Check them against the price for the model you enable.
+- **Credit prices are not set** for any Google model.
+- Safety-filtered results (`rai_media_filtered_count`) fail as `content_refused` with a full refund. Google does not document charging for them, so no ASZDA cost is assumed.
+- Not implemented: cancelling a running operation, video extension, reference images, last-frame interpolation, 4k.
+
+## Manual live tests (after adding credentials)
+
+`backend/tests_live/` holds opt-in tests that call the real APIs. The normal test run skips them.
+
+```bash
+cd backend
+ASZDA_LIVE_TESTS=1 .venv/bin/python -m pytest tests_live -q -s                       # free: connection checks
+ASZDA_LIVE_TESTS=1 ASZDA_LIVE_PAID=1 .venv/bin/python -m pytest tests_live -q -s -k anthropic   # PAID, small
+```
+
+- **Paid tests are billed by the provider.** Run them one provider at a time with `-k anthropic`, `openai`, `runway` or `google`.
+- They use the smallest settings: a short Claude reply and a short Director plan, one low-quality image, one short voice clip, a 2-second Runway clip, and a 4-second Veo clip.
+- Outputs go to `backend/live-test-output/`, which is git-ignored.
+
+## Adding or replacing a provider
+
+1. Write an adapter that subclasses `ProviderAdapter` in `backend/app/providers/base.py`. It provides:
+   - `model_specs`, `estimate_usage` and `submit`;
+   - `poll` and `cancel` if it is asynchronous;
+   - `missing_settings`, `test_connection` and `params_for_brief` (used by the Director).
+2. Register it in `registry.py`.
+3. Add its credit prices and, if it should be a default, its `ASZDA_AI_*_PROVIDER` setting.
+
+Nothing else in the application needs to change.

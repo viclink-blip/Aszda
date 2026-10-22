@@ -1,8 +1,11 @@
-# Credit pricing proposal (awaiting founder approval)
+# Credit pricing (approved, not yet active)
 
-**Status: PROPOSED, NOT ACTIVE.** Nothing below is in effect until the founder approves and
-runs `flask --app wsgi aszda pricing-apply pricing.proposed.json --yes` (or enters the
-values on Admin → Pricing). USD subscription and package prices are unchanged.
+**Status: APPROVED by the founder on 2026-10-22. NOT ACTIVE YET.** The values below are in
+`backend/pricing.approved.json`. They take effect only after the verification checklist in
+section 9 is complete and someone runs
+`flask --app wsgi aszda pricing-apply pricing.approved.json --yes` (or enters the values in
+Admin → Pricing). USD subscription and package prices are unchanged. The margins below are
+estimates based on provider prices that are partly unverified; **they are not guaranteed.**
 
 ## 1. What generation exists today
 
@@ -123,7 +126,18 @@ to about 74% (Starter) and 70% (Studio Max).
 
 These figures are checked by an automated test (`test_proposal_keeps_at_least_50_percent_margin`).
 
-## 7. Decisions needed from the founder
+## 7. Decisions (recorded 2026-10-22)
+
+The founder decided:
+1. **Credit costs and quantities:** approved as listed in sections 4 and 5.
+2. **Plan credits expire at the end of each billing period** (no rollover). Purchased package credits never expire. Built: see [CREDITS.md](CREDITS.md).
+3. **Runway safety blocks:** the customer is refunded in full, and the Runway charge is recorded as an ASZDA cost. Built.
+4. **Free plan:** 50 credits once per eligible new account, given on email confirmation, once per inbox. Built.
+5. **Voice models:** keep them until the provider shuts them down. OpenAI lists all current TTS models for shutdown on 2027-01-06; ASZDA shows this and refuses them from that date. A Realtime-API voice adapter is needed before then.
+
+Original questions, kept for reference:
+
+## 7a. Questions that were put to the founder
 
 1. **Approve or adjust** the credit costs (section 4) and the credit quantities (section 5).
 2. **Unused monthly credits.**
@@ -147,9 +161,29 @@ These figures are checked by an automated test (`test_proposal_keeps_at_least_50
 
 ```bash
 cd backend
-flask --app wsgi aszda pricing-apply pricing.proposed.json        # preview (changes nothing)
-flask --app wsgi aszda pricing-apply pricing.proposed.json --yes  # apply (audited)
+flask --app wsgi aszda pricing-apply pricing.approved.json        # preview (changes nothing)
+flask --app wsgi aszda pricing-apply pricing.approved.json --yes  # apply (audited)
 ```
 
 After that, every value can be changed in **Admin → Pricing** without a restart. Payments stay
 switched off (`ASZDA_PAYSTACK_USD_ENABLED=false`) until USD is confirmed with Paystack.
+
+## 9. Verification before activating for customers
+
+Do not apply `pricing.approved.json` in production until each line is checked:
+
+- [ ] Anthropic Opus 5.5: $4 / $20 per 1M tokens. Opened directly on 2026-10-22; re-check on the day of activation.
+- [ ] Runway gen4.5 price per second, on Runway's own pricing page.
+  - **The two sources conflict.** The pricing page says 12 credits/s ($0.12/s); the models page says "from $0.15/s" (both search summaries).
+  - At $0.15/s and 32 credits/s, the worst-case margins drop to: Starter 45.9%, Creator 43.6%, Pro Studio 40.3%, Studio Max 38.5%, Small/Medium 51.3%, Large 49.3%, Professional 48.3%.
+  - To keep at least 50% at $0.15/s, gen4.5 would need about **40 credits per second** (minimum 80). This is not applied; it needs your decision.
+- [ ] Runway veo3.1_fast at $0.10/s and $0.15/s with audio, and whether Runway charges `SAFETY.OUTPUT.*` failures. Its docs are ambiguous; ASZDA budgets them as charged and absorbs them.
+- [ ] OpenAI tts-1 / tts-1-hd at $15 / $30 per 1M characters, and the gpt-4o-mini-tts assumption of $0.03 per 1,000 characters. Check the latter after the first invoice.
+- [ ] Paystack Kenya fees: 3.8% international cards and USD, 2.9% local cards, 1.5% M-Pesa (search summaries).
+- [ ] Paystack USD and recurring billing for this merchant account (see [BILLING.md](BILLING.md)).
+- [ ] Image and Google Veo models: **no credit prices yet.** Price them only after their provider prices are confirmed.
+
+How the arithmetic was checked:
+- **Automated test.** `test_proposal_keeps_at_least_50_percent_margin` recomputes every item from the approved file.
+- **Independent recomputation.** A separate Decimal calculation outside the application reproduced every margin in section 6 exactly, and the $0.15/s figures above.
+- **Exact job prices.** Tests check the credits for each reference job: gen4.5 5 s = 160, 10 s = 320; Veo 8 s = 216, or 320 with audio; script draft = 23; one minute of tts-1 = 4.

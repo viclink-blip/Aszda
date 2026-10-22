@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any, Literal
 
+from flask import current_app
 from pydantic import BaseModel
 
 from app.models import AssetKind, GenerationKind
@@ -126,14 +127,49 @@ class ProviderAdapter(ABC):
     #: Name of the environment variable holding the credential (shown to admins, never the value).
     credential_env: str
 
+    #: What the connection test does, shown to admins before they run it. None: no test.
+    connection_test: str | None = None
+    #: True when the connection test may be billed by the provider.
+    connection_test_may_charge: bool = False
+
     @abstractmethod
     def is_configured(self) -> bool: ...
+
+    def missing_settings(self) -> list[str]:
+        """Names of required environment variables that are not set (never their values)."""
+        return [] if self.is_configured() else [self.credential_env]
+
+    def params_for_brief(self, model: ModelSpec, brief: dict[str, Any]) -> dict[str, Any]:
+        """Turn a provider-neutral request from the AI Film Director into this model's params.
+
+        brief keys: prompt, text, duration_seconds, orientation ("landscape"|"portrait"),
+        reference_asset_id (optional image), style (optional)."""
+        raise ProviderError(f"{self.label} cannot be used by the AI Film Director for {model.kind.value}.",
+                            code="unsupported_capability")
+
+    def test_connection(self) -> str:
+        """Check the credential with a request that does not generate anything. Returns a short
+        human-readable result; raises ProviderError on failure."""
+        raise ProviderError("This provider has no connection test.", code="not_supported")
 
     @abstractmethod
     def model_specs(self) -> list[ModelSpec]: ...
 
     def get_model(self, model_id: str) -> ModelSpec | None:
         return next((m for m in self.model_specs() if m.id == model_id), None)
+
+    #: Config keys naming this provider's default model per kind of work (first match wins).
+    default_model_settings: dict[GenerationKind, str] = {}
+
+    def default_model(self, kind: GenerationKind) -> ModelSpec | None:
+        """The model used when a request names this provider but no model: the one set in the
+        configuration for this kind of work, else the first model of that kind."""
+        specs = [m for m in self.model_specs() if m.kind == kind]
+        setting = self.default_model_settings.get(kind)
+        wanted = current_app.config.get(setting) if setting else None
+        if wanted:
+            return next((m for m in specs if m.id == wanted), None)
+        return specs[0] if specs else None
 
     def validate(self, model: ModelSpec, raw: dict[str, Any]) -> dict[str, Any]:
         """Validate with the model's pydantic schema. Raises pydantic.ValidationError."""

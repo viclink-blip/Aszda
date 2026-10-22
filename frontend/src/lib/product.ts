@@ -6,7 +6,7 @@
 import { AudioLines, Clapperboard, FileText, Film, ImageIcon, type LucideIcon, PenLine, Scissors, Sparkles, Wallet, Wand2 } from "lucide-react";
 
 export interface Studio {
-  slug: "script" | "video" | "animation" | "voice";
+  slug: "script" | "image" | "video" | "animation" | "voice" | "director";
   name: string;
   href: string;
   icon: LucideIcon;
@@ -24,12 +24,20 @@ export const STUDIOS: Studio[] = [
     provider: "Anthropic Claude",
   },
   {
+    slug: "image",
+    name: "Image Studio",
+    href: "/app/studio/image",
+    icon: ImageIcon,
+    summary: "Create character designs, key frames and storyboard images from a description.",
+    provider: "OpenAI",
+  },
+  {
     slug: "video",
     name: "Video Studio",
     href: "/app/studio/video",
     icon: Film,
     summary: "Generate short video clips from a text prompt, or from a reference image used as the first frame.",
-    provider: "Runway",
+    provider: "Runway or Google Veo",
   },
   {
     slug: "animation",
@@ -47,6 +55,14 @@ export const STUDIOS: Studio[] = [
     summary: "Turn narration and dialogue into speech with a choice of voices, formats and speaking styles.",
     provider: "OpenAI",
   },
+  {
+    slug: "director",
+    name: "AI Film Director",
+    href: "/app/director",
+    icon: Clapperboard,
+    summary: "Claude plans your film's characters and scenes; then each scene's image, video and voice are generated.",
+    provider: "Anthropic Claude, then the image, video and voice providers",
+  },
 ];
 
 export interface PlannedFeature {
@@ -57,16 +73,6 @@ export interface PlannedFeature {
 
 /** Features that do NOT exist yet. Always labelled "Planned" in the UI. */
 export const PLANNED: PlannedFeature[] = [
-  {
-    name: "AI Film Director",
-    icon: Clapperboard,
-    summary: "A guided workflow from story to finished film: concept, script, characters, storyboard, review and generation.",
-  },
-  {
-    name: "Image generation",
-    icon: ImageIcon,
-    summary: "Create character designs, key frames and storyboard images directly in ASZDA.",
-  },
   {
     name: "Export and assembly",
     icon: Scissors,
@@ -87,8 +93,9 @@ export const PLANNED: PlannedFeature[] = [
 /** The providers ASZDA works with today (no proprietary models). */
 export const PROVIDERS = [
   { name: "Anthropic Claude", role: "Writing — story concepts, scripts, characters and scene breakdowns", icon: FileText },
-  { name: "OpenAI", role: "Voice — text-to-speech narration and dialogue", icon: AudioLines },
+  { name: "OpenAI", role: "Voice and images — text-to-speech and GPT Image", icon: AudioLines },
   { name: "Runway", role: "Video — text-to-video and image-to-video clips", icon: Film },
+  { name: "Google Veo", role: "Video — text-to-video and image-to-video clips with sound", icon: Film },
 ];
 
 export const CONTACT_EMAIL = "hello@aszda.example"; // placeholder: replace before launch

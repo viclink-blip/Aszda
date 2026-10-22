@@ -7,12 +7,14 @@ from __future__ import annotations
 
 from app.providers.anthropic_text import AnthropicTextAdapter
 from app.providers.base import ProviderAdapter
-from app.providers.openai_speech import OpenAISpeechAdapter
+from app.providers.google_video import GoogleVideoAdapter
+from app.providers.openai_speech import OpenAIAdapter
 from app.providers.runway_video import RunwayVideoAdapter
 
 
 def _default_adapters() -> dict[str, ProviderAdapter]:
-    adapters: list[ProviderAdapter] = [AnthropicTextAdapter(), OpenAISpeechAdapter(), RunwayVideoAdapter()]
+    adapters: list[ProviderAdapter] = [AnthropicTextAdapter(), OpenAIAdapter(), RunwayVideoAdapter(),
+                                       GoogleVideoAdapter()]
     return {a.name: a for a in adapters}
 
 

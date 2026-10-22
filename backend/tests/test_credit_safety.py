@@ -77,3 +77,14 @@ def test_no_generation_without_enough_credits(app, make_user):
     assert response.get_json()["error"]["details"] == {"balance": COST - 1, "required": COST}
     balance, ledger, jobs = ledger_state(app, user.id)
     assert (balance, jobs) == (COST - 1, 0)
+
+
+def test_parallel_duplicates_never_deadlock(app, make_user):
+    """Regression: a duplicate request used to insert its job while holding the account lock,
+    waiting on the original job's row while the worker settling that job waited for the same
+    lock (PostgreSQL deadlock -> HTTP 500). Repeated to make the race likely."""
+    for _ in range(20):
+        user = make_user(credits=100)
+        codes = run_in_parallel(app, user.token, [f"dup-{uuid.uuid4()}"] * 5)
+        assert sorted(codes) == [200, 200, 200, 200, 201], codes
+        assert ledger_state(app, user.id) == (97, 97, 1)

@@ -107,6 +107,12 @@ class FakeAsyncVideoAdapter(ProviderAdapter):
     def estimate_usage(self, model: ModelSpec, params: dict[str, Any]) -> dict[str, float]:
         return {"video_seconds": params["duration"]}
 
+    def params_for_brief(self, model: ModelSpec, brief: dict[str, Any]) -> dict[str, Any]:
+        params = {"prompt_text": brief["prompt"][:1000], "duration": min(10, max(2, brief["duration_seconds"]))}
+        if brief.get("reference_asset_id"):
+            params["reference_asset_id"] = str(brief["reference_asset_id"])
+        return params
+
     def submit(self, ctx: JobContext) -> ProviderOutcome:
         if ctx.params.get("reference_asset_id"):
             import uuid

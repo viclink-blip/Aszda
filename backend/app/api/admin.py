@@ -15,7 +15,7 @@ from sqlalchemy import func, or_, select
 from app.api.common import doc, page, pagination, parse_body
 from app.api.generation import provider_catalog
 from app.errors import APIError, NotFound
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models import (
     AuditEvent,
     CreditAccount,
@@ -24,6 +24,7 @@ from app.models import (
     GenerationJob,
     JobStatus,
     Project,
+    ProviderCost,
     Role,
     User,
 )
@@ -31,7 +32,7 @@ from app.providers import registry
 from app.schemas.requests import AdminCreditIn, AdminUserUpdateIn
 from app.schemas.serializers import audit_out, credit_tx_out, job_out, user_out
 from app.security.auth import admin_required, current_user
-from app.services import audit, auth_service, credit_service, pricing
+from app.services import audit, auth_service, credit_service, orchestrator, pricing, provider_health
 
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
@@ -209,6 +210,56 @@ def providers():
         adapter = registry.get_adapter(entry["name"])
         entry["credential_env"] = adapter.credential_env
     return jsonify({"providers": catalog})
+
+
+@bp.get("/providers/health")
+@doc("Provider readiness: missing settings (names only), capabilities, models, last connection test, "
+     "and what each kind of work would use", tags=["Admin"], auth="admin")
+@admin_required
+def providers_health():
+    data = provider_health.describe_all()
+    db.session.commit()
+    return jsonify({"providers": data, "routing": orchestrator.capabilities()})
+
+
+@bp.post("/providers/<name>/test")
+@doc("Run a provider's connection test (no generation). Body: {\"confirm_charge\": true} when the "
+     "test may be charged", tags=["Admin"], auth="admin")
+@admin_required
+@limiter.limit("6 per minute")
+def provider_test(name: str):
+    body = request.get_json(silent=True) or {}
+    result = provider_health.run_test(name, actor_id=current_user().id,
+                                      confirm_charge=body.get("confirm_charge") is True)
+    return jsonify({"provider": result})
+
+
+@bp.get("/provider-costs")
+@doc("What ASZDA paid providers (estimated from entered provider prices) vs credits charged, by "
+     "provider, model and outcome", tags=["Admin"], auth="admin", query={"days": "1-365, default 30"})
+@admin_required
+def provider_costs():
+    try:
+        days = min(365, max(1, int(request.args.get("days", 30))))
+    except ValueError as exc:
+        raise APIError("days must be a number.", code="invalid_filter") from exc
+    since = datetime.now(UTC) - timedelta(days=days)
+    rows = db.session.execute(
+        select(ProviderCost.provider, ProviderCost.model, ProviderCost.outcome, ProviderCost.absorbed_by_aszda,
+               func.count(), func.sum(ProviderCost.estimated_usd), func.count(ProviderCost.estimated_usd),
+               func.sum(ProviderCost.credits_charged_to_customer))
+        .where(ProviderCost.created_at >= since)
+        .group_by(ProviderCost.provider, ProviderCost.model, ProviderCost.outcome, ProviderCost.absorbed_by_aszda)
+    ).all()
+    return jsonify({
+        "period_days": days,
+        "rows": [{"provider": p, "model": m, "outcome": o, "absorbed_by_aszda": a, "jobs": n,
+                  "estimated_usd": str(usd) if usd is not None else None, "jobs_with_estimate": n_est,
+                  "credits_charged": credits or 0} for p, m, o, a, n, usd, n_est, credits in rows],
+        "note": "estimated_usd uses the provider prices entered in Admin -> Pricing; it is not an invoice. "
+                "Jobs without an entered provider price have no estimate. Provider-reported figures are "
+                "kept on each record (provider_reported).",
+    })
 
 
 @bp.get("/audit-events")

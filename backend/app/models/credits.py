@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import enum
 import uuid
-
 from datetime import datetime
 
 from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Integer, String, Uuid

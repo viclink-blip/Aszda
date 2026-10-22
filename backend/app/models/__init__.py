@@ -21,6 +21,7 @@ from app.models.generation import (
 )
 from app.models.pricing import BillingItemSetting, GenerationPrice
 from app.models.project import Character, Project, ProjectStatus, Scene, scene_characters
+from app.models.provider_status import ProviderStatus
 from app.models.user import (
     AuthSession,
     RefreshToken,
@@ -35,6 +36,8 @@ __all__ = [
     "ACTIVE_STATUSES", "FINAL_STATUSES", "Asset", "AssetKind", "AssetSource", "AuditEvent",
     "AuthSession", "BillingItemSetting", "Character", "CreditAccount", "CreditTransaction", "CreditTxType",
     "GenerationJob", "GenerationKind", "GenerationPrice", "JobStatus", "Payment", "PaymentEvent", "PaymentKind",
-    "PaymentStatus", "Project", "ProviderCost", "SignupGrantClaim", "Subscription", "SubscriptionStatus", "ProjectStatus", "RefreshToken",
+    "PaymentStatus", "Project", "ProviderCost", "ProviderStatus", "SignupGrantClaim", "Subscription",
+    "SubscriptionStatus",
+    "ProjectStatus", "RefreshToken",
     "Role", "Scene", "TokenPurpose", "User", "UserProfile", "UserToken", "scene_characters",
 ]

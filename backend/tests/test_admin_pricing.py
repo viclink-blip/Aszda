@@ -255,7 +255,7 @@ def _proposal():
     import json
     from pathlib import Path
 
-    return json.loads((Path(__file__).parent.parent / "pricing.proposed.json").read_text())
+    return json.loads((Path(__file__).parent.parent / "pricing.approved.json").read_text())
 
 
 def test_pricing_dry_run_changes_nothing(app, admin_prices):

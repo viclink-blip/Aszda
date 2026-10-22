@@ -50,8 +50,9 @@ POST /api/generation-jobs  (Idempotency-Key header)
   ├─ same key seen before?            → return that job (no double charge)
   ├─ email verified? project owned?   → else 403/404
   ├─ adapter.validate(params)         → 422 on bad settings
-  ├─ provider key configured?         → else 503 provider_not_configured
-  ├─ price configured?                → else 409 pricing_not_configured
+  ├─ orchestrator.route(kind, provider?, model?)
+  │    explicit provider → exactly that one (no fallback), else the configured provider for the
+  │    kind, then its fallbacks; unconfigured/switched off → 503, unpriced → 409, retired → 422
   ├─ lock credit account (row lock)
   ├─ limits: per job, active jobs, daily, monthly
   ├─ insert job (status=queued) + ledger RESERVE (−estimate) in ONE transaction

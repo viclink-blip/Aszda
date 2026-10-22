@@ -12,9 +12,12 @@ from app.providers.base import ProviderError
 from app.services import credit_service, generation_service
 from app.services.auth_service import canonical_email
 from app.services.email import outbox
+from tests import test_billing
 from tests.conftest import register
 from tests.fakes import FakeAsyncVideoAdapter
-from tests.test_billing import checkout, fake_paystack  # noqa: F401 — fixture
+from tests.test_billing import checkout
+
+fake_paystack = test_billing.fake_paystack  # shared fixture
 
 
 def idem() -> dict:

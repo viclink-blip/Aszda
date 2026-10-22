@@ -159,7 +159,7 @@ def register_cli(app: Flask) -> None:
     @click.option("--yes", is_flag=True, help="Apply. Without it, only show what would change.")
     def pricing_apply(path: str, yes: bool) -> None:
         """Load generation credit costs and plan/package credits from a JSON file into the admin
-        settings (see backend/pricing.proposed.json). USD prices are never changed by this."""
+        settings (see backend/pricing.approved.json). USD prices are never changed by this."""
         import json
 
         from app.services.pricing_settings import apply_pricing_document

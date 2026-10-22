@@ -2,6 +2,7 @@
 
 import { CreditCard, Receipt } from "lucide-react";
 import { useState } from "react";
+import { BalanceSplit } from "@/components/account/credits-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -120,6 +121,7 @@ export function BillingView() {
               {data ? formatNumber(data.credits.balance) : "…"}
             </p>
             <p className="mt-1 text-sm text-muted">credits</p>
+            {data && <BalanceSplit account={data.credits} />}
           </CardBody>
         </Card>
         <Card>

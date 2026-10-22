@@ -5,6 +5,7 @@ import {
   CreditCard,
   FolderKanban,
   History,
+  Image as ImageIcon,
   LayoutDashboard,
   type LucideIcon,
   PenLine,
@@ -41,10 +42,11 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Studios",
     items: [
       { href: "/app/studio/script", label: "Script", icon: PenLine },
+      { href: "/app/studio/image", label: "Image", icon: ImageIcon },
       { href: "/app/studio/video", label: "Video", icon: Film },
       { href: "/app/studio/animation", label: "Animation", icon: Wand2 },
       { href: "/app/studio/voice", label: "Voice", icon: AudioLines },
-      { href: "/app/director", label: "AI Film Director", icon: Clapperboard, planned: true },
+      { href: "/app/director", label: "AI Film Director", icon: Clapperboard },
     ],
   },
   {

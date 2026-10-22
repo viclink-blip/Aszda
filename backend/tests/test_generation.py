@@ -324,7 +324,8 @@ def test_quote_and_provider_catalog(make_user):
         "provider": "fake-text", "model": "fake-writer", "kind": "text",
         "params": {"prompt": "x", "max_output_tokens": 1000}}).get_json()
     assert quote == {"priced": True, "estimated_credits": 11, "balance": 40,
-                     "estimated_usage": {"input_tokens": 500, "output_tokens": 1000}}
+                     "estimated_usage": {"input_tokens": 500, "output_tokens": 1000},
+                     "provider": "fake-text", "model": "fake-writer", "fallback_used": False}
     providers = {p["name"]: p for p in user.get("/api/providers").get_json()["providers"]}
     assert providers["fake-text"]["models"][0]["available"] is True
     # Real adapters have no API key in tests, so they must be reported unavailable.

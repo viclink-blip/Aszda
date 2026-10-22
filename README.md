@@ -23,14 +23,22 @@ own models can be added later without rewriting the app.
 | Projects, characters, storyboard scenes (create, edit, reorder, duplicate, delete) | Implemented and tested |
 | Media uploads (images, video, audio) with type detection, size limits, private storage, short-lived links | Implemented and tested |
 | Background generation jobs (queue, progress, cancel, retry, idempotency) | Implemented and tested (with fake providers + one real queue run) |
-| Credits ledger: reserve → release/refund, usage limits | Implemented and tested |
+| Credits ledger: reserve → release/refund, usage limits, expiring plan credits vs lasting purchased credits, one-time 50-credit sign-up grant | Implemented and tested |
 | Admin API: users, credits, jobs, usage, providers, audit log | Implemented and tested |
-| Script/story writing with **Anthropic Claude** | Implemented; needs `ANTHROPIC_API_KEY` + a configured price |
-| Voice (text-to-speech) with **OpenAI** | Implemented; needs `OPENAI_API_KEY` + a configured price |
-| Video (text/image-to-video) with **Runway** (`gen4.5`, `veo3.1_fast`) | Implemented; needs `RUNWAYML_API_SECRET` + a configured price |
+| Script/story writing with **Anthropic Claude** | Implemented, tested with a mocked API; needs `ANTHROPIC_API_KEY` + a configured price |
+| Voice (text-to-speech) and **images (GPT Image)** with **OpenAI** | Implemented, tested with a mocked API; needs `OPENAI_API_KEY` + a configured price. All OpenAI TTS models shut down 2027-01-06 |
+| Video (text/image-to-video) with **Runway** (`gen4.5`, `veo3.1_fast`) | Implemented, tested with a mocked API; needs `RUNWAYML_API_SECRET` + a configured price |
+| Video with **Google Veo** (Gemini API or Vertex AI) | Implemented, tested with a mocked SDK; needs Google credentials, model IDs you can use, and a price |
+| AI orchestrator: routing by kind of work, explicit provider choice, configurable fallback, provenance on every asset | Implemented and tested |
+| Admin → Providers: settings readiness, connection tests (no generation), routing, provider costs | Implemented and tested |
+| **AI Film Director**: Claude plans characters and scenes (structured output), then each scene's image, video and voice are generated | Implemented and tested with mocked providers |
 | Pricing in USD (plans $0–$99/month, credit packages $5–$50) with labelled KES reference amounts | Implemented and tested |
 | Paystack checkout, verification, webhooks, subscriptions, receipts | Implemented and tested with a mocked Paystack; **switched off** until USD is confirmed for the Paystack account and credit amounts are decided ([docs/BILLING.md](docs/BILLING.md)) |
-| Image generation, AI Film Director, final video assembly/export | **Not implemented yet** (planned) |
+| Final video assembly/export | **Not implemented yet** (planned) |
+
+No real generation has been run against any provider yet (no keys were available in the build
+environment). "Implemented" means code plus automated tests with mocked providers; see the status
+table in [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 Nothing in the app pretends to generate: a model is usable only when its API key **and**
 its credit price are configured. Otherwise the app shows it as unavailable.
@@ -109,9 +117,11 @@ npm run dev                          # http://localhost:3000
 ### 4. Turn on an AI provider
 
 1. Put the key in `backend/.env`, e.g. `ANTHROPIC_API_KEY=...`
-2. Copy `backend/pricing.example.json` to `backend/pricing.json`, set the credit prices
-   you want, and set `ASZDA_PRICING_FILE=./pricing.json`.
-3. Restart the API and worker. Check with `flask --app wsgi aszda check-pricing`.
+2. Set credit prices: `flask --app wsgi aszda pricing-apply pricing.approved.json` (preview), then
+   add `--yes` once you have done the verification checklist in
+   [docs/CREDIT_PRICING_PROPOSAL.md](docs/CREDIT_PRICING_PROPOSAL.md); or set them in Admin → Pricing.
+3. Restart the API and worker. Check with `flask --app wsgi aszda check-pricing` and
+   Admin → Providers → Test connection.
 4. Give yourself credits: `flask --app wsgi aszda grant-credits you@example.com 500 --reason "testing"`.
 
 See [docs/PROVIDERS.md](docs/PROVIDERS.md) and [docs/CREDITS.md](docs/CREDITS.md).

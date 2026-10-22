@@ -20,7 +20,11 @@ ordering, asset uploads and previews, job history per project.
 - ✅ OpenAI text-to-speech
 - ✅ Runway video (`gen4.5`, `veo3.1_fast`; text-to-video and image-to-video)
 - 🔒 Live verification of each provider with real keys (none were available during the build)
-- ⏳ Image generation adapter (choose a provider; verify its docs)
+- ✅ OpenAI image generation (GPT Image)
+- ✅ Google Veo video adapter (Gemini API or Vertex AI; model IDs configured by the operator)
+- ✅ Orchestrator: routing per kind of work, explicit choice, fallback before any charge
+- ✅ Admin provider health checks and provider cost records
+- ⏳ Voice adapter for OpenAI's Realtime API before the TTS shutdown on 2027-01-06
 - ⏳ ElevenLabs voices (current model list could not be verified during the build)
 - ✗ OpenAI Sora was skipped: OpenAI scheduled the Sora API to shut down on 2026-09-24.
 
@@ -57,7 +61,7 @@ ordering, asset uploads and previews, job history per project.
 1. Add real API keys in a staging environment and run one real job per provider; fix anything the
    live APIs reveal.
 2. Decide credit prices and the payment provider; then build credit packages + webhooks.
-3. "AI Film Director" v1: Claude produces a structured scene breakdown that is saved directly as
-   characters and scenes in a project (structured output), ready for review.
+3. ✅ "AI Film Director" v1: Claude produces a structured plan that is added to a project as
+   characters and scenes after review; each scene's image, video and voice can then be generated.
 4. Scene assembly worker (FFmpeg) to stitch clips and voice-over into an exportable MP4.
 5. Deploy staging (API + worker + Postgres + Redis + S3-compatible storage) behind HTTPS.

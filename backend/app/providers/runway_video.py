@@ -145,6 +145,29 @@ class RunwayVideoAdapter(ProviderAdapter):
     label = "Runway"
     supports_cancel = True
     credential_env = "RUNWAYML_API_SECRET"
+    default_model_settings = {GenerationKind.VIDEO: "RUNWAY_VIDEO_MODEL"}
+    connection_test = ("Reads the organization's credit balance and usage tier (GET /v1/organization). "
+                       "Nothing is generated.")
+
+    def params_for_brief(self, model: ModelSpec, brief: dict[str, Any]) -> dict[str, Any]:
+        portrait = brief.get("orientation") == "portrait"
+        prompt = " ".join(x for x in (brief.get("prompt"), brief.get("style")) if x)[:1000]
+        params: dict[str, Any] = {"prompt_text": prompt, "ratio": "720:1280" if portrait else "1280:720"}
+        if brief.get("reference_asset_id"):
+            params.update(mode="image_to_video", reference_asset_id=str(brief["reference_asset_id"]))
+        else:
+            params["mode"] = "text_to_video"
+        seconds = int(brief.get("duration_seconds") or 5)
+        if model.id == "veo3.1_fast":
+            params["duration"] = min((4, 6, 8), key=lambda d: abs(d - seconds))
+        else:
+            params["duration"] = min(10, max(2, seconds))
+        return params
+
+    def test_connection(self) -> str:
+        data = self._request("GET", "/v1/organization").json()
+        balance = data.get("creditBalance") if isinstance(data, dict) else None
+        return f"Credential accepted; Runway API credit balance: {balance}"
 
     def is_configured(self) -> bool:
         return bool(current_app.config.get("RUNWAY_API_KEY"))
@@ -237,7 +260,9 @@ class RunwayVideoAdapter(ProviderAdapter):
             return ProviderOutcome(status="completed", provider_job_id=ctx.provider_job_id,
                                    progress=100, outputs=outputs, usage=usage,
                                    result={"runway_task_id": ctx.provider_job_id,
-                                           "runway_cost": task.get("cost")})
+                                           # Kept only if Runway's task object reports one (not documented).
+                                           "provider_reported": {"cost": task["cost"]}
+                                           if task.get("cost") is not None else None})
         if status == "FAILED":
             failure_code = str(task.get("failureCode") or "")
             reported = {k: task[k] for k in ("failureCode", "cost") if task.get(k) is not None} or None

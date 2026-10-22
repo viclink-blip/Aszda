@@ -79,6 +79,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
   anthropic: "Anthropic Claude",
   openai: "OpenAI",
   runway: "Runway",
+  google: "Google Veo",
 };
 
 export function providerLabel(name: string): string {
@@ -87,8 +88,10 @@ export function providerLabel(name: string): string {
 
 /** Plain-language explanation of each credit ledger entry type. */
 export const CREDIT_TX_INFO: Record<CreditTxType, { label: string; explanation: string }> = {
-  grant: { label: "Grant", explanation: "Credits added to your account by ASZDA (for example a trial or promotional grant)." },
-  purchase: { label: "Purchase", explanation: "Credits you bought. Payments are not active yet." },
+  grant: { label: "Grant", explanation: "Credits added by ASZDA (for example the free sign-up credits). They never expire." },
+  purchase: { label: "Purchase", explanation: "Credits from a credit package you bought. They never expire." },
+  plan_allowance: { label: "Plan credits", explanation: "Your plan's monthly credits. They expire at the end of the billing period." },
+  expire: { label: "Expired", explanation: "Unused plan credits removed at the end of their billing period (they do not roll over)." },
   reserve: { label: "Reserved", explanation: "Credits held when a generation starts, based on its maximum estimated cost." },
   release: { label: "Released", explanation: "The unused part of a reservation, returned after a generation finished." },
   refund: { label: "Refund", explanation: "A reservation returned in full because a generation failed or was cancelled." },
@@ -100,6 +103,9 @@ export const UNAVAILABLE_REASONS: Record<UnavailableReason, string> = {
     "This provider is not connected yet. An administrator needs to add its API key before it can be used.",
   pricing_not_configured:
     "Credit pricing for this model has not been set yet, so it cannot be used until an administrator configures it.",
+  provider_disabled: "An administrator has switched this provider off.",
+  model_retired: "The provider has retired this model.",
+  unsupported_model: "This model is not offered for this kind of generation.",
 };
 
 export function unavailableText(reason: UnavailableReason | null): string {

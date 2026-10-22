@@ -87,7 +87,8 @@ def save_upload(user: User, project_id: uuid.UUID | None, stream: BinaryIO, file
 def save_generated(*, owner_id: uuid.UUID, project_id: uuid.UUID | None, job_id: uuid.UUID,
                    data: bytes | BinaryIO, mime_type: str, kind: AssetKind, display_name: str,
                    duration_seconds: float | None = None, width: int | None = None,
-                   height: int | None = None) -> Asset:
+                   height: int | None = None, provider: str | None = None,
+                   model: str | None = None) -> Asset:
     """Store a provider's output. The caller commits."""
     extension = EXTENSIONS.get(mime_type, "bin")
     asset_id = uuid.uuid4()
@@ -106,7 +107,7 @@ def save_generated(*, owner_id: uuid.UUID, project_id: uuid.UUID | None, job_id:
         id=asset_id, owner_id=owner_id, project_id=project_id, generation_job_id=job_id, kind=kind,
         source=AssetSource.GENERATED, storage_key=key, display_name=display_name[:255],
         mime_type=mime_type, size_bytes=size, sha256=digest.hexdigest(),
-        duration_seconds=duration_seconds, width=width, height=height,
+        duration_seconds=duration_seconds, width=width, height=height, provider=provider, model=model,
     )
     db.session.add(asset)
     return asset

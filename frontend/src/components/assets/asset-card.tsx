@@ -3,7 +3,7 @@
 import { Download, Eye, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatBytes, formatDuration, formatRelative } from "@/lib/format";
+import { formatBytes, formatDuration, formatRelative, providerLabel } from "@/lib/format";
 import type { Asset } from "@/lib/types";
 import { AssetMedia } from "./asset-media";
 import { useAssetUrl } from "./use-asset-url";
@@ -47,6 +47,11 @@ export function AssetCard({ asset, onPreview, onRename, onDelete }: {
           <Badge tone={asset.source === "generated" ? "accent" : "neutral"}>{asset.source === "generated" ? "Generated" : "Uploaded"}</Badge>
         </div>
         <p className="text-xs text-subtle">{details} · {formatRelative(asset.created_at)}</p>
+        {asset.provider && (
+          <p className="truncate text-xs text-subtle" title={`${providerLabel(asset.provider)} ${asset.model ?? ""}`}>
+            Made with {providerLabel(asset.provider)} <span className="font-mono">{asset.model}</span>
+          </p>
+        )}
         <div className="mt-auto flex items-center gap-1 pt-1">
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onPreview} aria-label={`Preview ${asset.display_name}`}>
             <Eye className="h-4 w-4" aria-hidden />

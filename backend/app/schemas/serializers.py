@@ -67,7 +67,7 @@ def scene_out(s: Scene) -> dict[str, Any]:
     return {
         "id": str(s.id), "project_id": str(s.project_id), "position": s.position, "title": s.title,
         "description": s.description, "shot_notes": s.shot_notes, "dialogue": s.dialogue,
-        "duration_seconds": s.duration_seconds,
+        "duration_seconds": s.duration_seconds, "ai_prompts": s.ai_prompts or {},
         "character_ids": [str(c.id) for c in s.characters],
         "preview_asset_id": str(s.preview_asset_id) if s.preview_asset_id else None,
         "created_at": iso(s.created_at), "updated_at": iso(s.updated_at),
@@ -81,7 +81,8 @@ def asset_out(a: Asset) -> dict[str, Any]:
         "kind": a.kind.value, "source": a.source.value, "display_name": a.display_name,
         "original_filename": a.original_filename, "mime_type": a.mime_type,
         "size_bytes": a.size_bytes, "width": a.width, "height": a.height,
-        "duration_seconds": a.duration_seconds, "created_at": iso(a.created_at),
+        "duration_seconds": a.duration_seconds, "provider": a.provider, "model": a.model,
+        "created_at": iso(a.created_at),
     }
 
 

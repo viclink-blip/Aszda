@@ -44,7 +44,7 @@ from app.models import (
 from app.models.generation import TRANSITIONS
 from app.providers import registry
 from app.providers.base import JobContext, ProviderAdapter, ProviderError, ProviderOutcome
-from app.services import asset_service, audit, credit_service, pricing
+from app.services import asset_service, audit, credit_service, orchestrator, pricing
 from app.storage.backends import get_storage
 
 log = logging.getLogger(__name__)
@@ -78,22 +78,10 @@ def _existing_job(user: User, idempotency_key: str) -> GenerationJob | None:
         GenerationJob.user_id == user.id, GenerationJob.idempotency_key == idempotency_key))
 
 
-def _resolve_adapter(provider: str, model: str, kind: GenerationKind):
-    adapter = registry.get_adapter(provider)
-    if adapter is None:
-        raise NotFound(f"Unknown provider '{provider}'.", code="unknown_provider")
-    spec = adapter.get_model(model)
-    if spec is None or spec.kind != kind:
-        raise APIError(f"{adapter.label} does not offer '{model}' for {kind.value} generation.",
-                       code="unsupported_model", status_code=422)
-    if spec.is_retired():
-        raise APIError(f"{adapter.label} retired '{model}' on {spec.shutdown_on.isoformat()}. "
-                       "Choose another model.", code="model_retired", status_code=422)
-    if not adapter.is_configured():
-        raise ServiceUnavailable(
-            f"{adapter.label} is not connected yet. An administrator needs to add its API key.",
-            code="provider_not_configured")
-    return adapter, spec
+def _resolve_adapter(provider: str | None, model: str | None, kind: GenerationKind):
+    """The adapter, model and routing record for a request (see services/orchestrator.py)."""
+    chosen = orchestrator.route(kind, provider, model)
+    return chosen.adapter, chosen.spec, chosen
 
 
 def _check_referenced_assets(user: User, params: dict[str, Any], project_id: uuid.UUID | None) -> None:
@@ -150,13 +138,13 @@ def monthly_limit_for(user: User) -> int:
     return current_app.config["MONTHLY_CREDIT_LIMIT"]
 
 
-def quote(user: User, *, provider: str, model: str, kind: GenerationKind,
+def quote(user: User, *, provider: str | None, model: str | None, kind: GenerationKind,
           params: dict[str, Any]) -> dict[str, Any]:
     """Validate a request and return its credit estimate without creating a job."""
-    adapter, spec = _resolve_adapter(provider, model, kind)
+    adapter, spec, chosen = _resolve_adapter(provider, model, kind)
     clean = adapter.validate(spec, params)
     usage = adapter.estimate_usage(spec, clean)
-    price = pricing.price_for(provider, model)
+    price = pricing.price_for(adapter.name, spec.id)
     balance = credit_service.get_account(user.id).balance
     db.session.commit()
     return {
@@ -164,10 +152,14 @@ def quote(user: User, *, provider: str, model: str, kind: GenerationKind,
         "estimated_credits": price.credits_for(usage) if price else None,
         "estimated_usage": usage,
         "balance": balance,
+        "provider": adapter.name,
+        "model": spec.id,
+        "fallback_used": chosen.fallback_used,
     }
 
 
-def create_job(user: User, *, idempotency_key: str, provider: str, model: str, kind: GenerationKind,
+def create_job(user: User, *, idempotency_key: str, provider: str | None, model: str | None,
+               kind: GenerationKind,
                params: dict[str, Any], project_id: uuid.UUID | None, scene_id: uuid.UUID | None,
                retry_of: GenerationJob | None = None) -> tuple[GenerationJob, bool]:
     """Returns (job, created). created is False when the idempotency key was seen before."""
@@ -194,16 +186,12 @@ def create_job(user: User, *, idempotency_key: str, provider: str, model: str, k
         if scene is None or scene.project_id != project_id:
             raise NotFound("Scene not found in this project.")
 
-    adapter, spec = _resolve_adapter(provider, model, kind)
+    adapter, spec, chosen = _resolve_adapter(provider, model, kind)
     clean = adapter.validate(spec, params)
     _check_referenced_assets(user, clean, project_id)
+    provider, model = adapter.name, spec.id
 
-    price = pricing.price_for(provider, model)
-    if price is None:
-        raise APIError(
-            f"Credit pricing for {adapter.label} '{model}' has not been configured yet, so it cannot "
-            "be used. An administrator needs to set it in the pricing file.",
-            code="pricing_not_configured", status_code=409)
+    price = pricing.price_for(provider, model)  # checked by the orchestrator; read once here
     estimate = adapter.estimate_usage(spec, clean)
     cost = price.credits_for(estimate)
 
@@ -211,6 +199,17 @@ def create_job(user: User, *, idempotency_key: str, provider: str, model: str, k
     # the limit checks and the reservation below cannot race each other.
     credit_service.ensure_account(user.id)
     db.session.execute(select(CreditAccount).where(CreditAccount.user_id == user.id).with_for_update())
+    # Look again now that we hold the lock: a parallel duplicate may have committed meanwhile.
+    # Returning it here (instead of inserting and hitting the unique key) also avoids a
+    # deadlock: that insert would wait on the job row a worker is settling, while the worker
+    # waits for the account lock held here.
+    existing = _existing_job(user, idempotency_key)
+    if existing is not None:
+        db.session.rollback()
+        if existing.request_fingerprint != request_fp:
+            raise Conflict("This Idempotency-Key was already used for a different request.",
+                           code="idempotency_key_reused")
+        return existing, False
     _check_limits(user, cost)
 
     job = GenerationJob(
@@ -218,7 +217,7 @@ def create_job(user: User, *, idempotency_key: str, provider: str, model: str, k
         retry_of_id=retry_of.id if retry_of else None, idempotency_key=idempotency_key,
         request_fingerprint=request_fp, kind=kind, provider=provider, model=model,
         input_params=clean, status=JobStatus.QUEUED, credits_reserved=cost,
-        usage={"estimate": estimate, "pricing": {
+        usage={"estimate": estimate, "routing": chosen.record(), "pricing": {
             "credits_per_1000": price.credits_per_1000, "minimum_credits": price.minimum_credits,
             "provider_usd_per_1000": price.provider_usd_per_1000 or {}}},
     )
@@ -322,7 +321,8 @@ def run_job(job_id: uuid.UUID) -> None:
 
     adapter = registry.get_adapter(job.provider)
     spec = adapter.get_model(job.model) if adapter else None
-    if adapter is None or spec is None or not adapter.is_configured():
+    if adapter is None or spec is None or not adapter.is_configured() \
+            or orchestrator.provider_disabled(job.provider) or spec.is_retired():
         _fail(_lock_job(job_id), ProviderError("This provider is no longer available.",
                                                code="provider_not_configured"))
         return
@@ -406,7 +406,8 @@ def _complete(job_id: uuid.UUID, outcome: ProviderOutcome) -> None:
             stored.append(asset_service.save_generated(
                 owner_id=job.user_id, project_id=job.project_id, job_id=job.id, data=data,
                 mime_type=output.mime_type, kind=output.kind, display_name=output.display_name,
-                duration_seconds=output.duration_seconds, width=output.width, height=output.height))
+                duration_seconds=output.duration_seconds, width=output.width, height=output.height,
+                provider=job.provider, model=job.model))
         keys = [a.storage_key for a in stored]
         db.session.flush()
         asset_ids = [str(a.id) for a in stored]
@@ -437,10 +438,13 @@ def _complete(job_id: uuid.UUID, outcome: ProviderOutcome) -> None:
     job.completed_at = now()
     job.result = {**(outcome.result or {}), "asset_ids": asset_ids}
     job.usage = {**job.usage, "actual": outcome.usage}
+    if job.scene_id and job.kind == GenerationKind.IMAGE and asset_ids:
+        scene = db.session.get(Scene, job.scene_id)
+        if scene is not None and scene.preview_asset_id is None:
+            scene.preview_asset_id = uuid.UUID(asset_ids[0])  # first image becomes the storyboard frame
     _settle(job, charged, success=True)
     _record_provider_cost(job, "completed", outcome.usage or job.usage.get("estimate") or {},
-                          reported=(outcome.result or {}).get("runway_cost") and
-                          {"cost": outcome.result["runway_cost"]}, absorbed=False)
+                          reported=(outcome.result or {}).get("provider_reported"), absorbed=False)
     db.session.commit()
 
 

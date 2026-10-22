@@ -75,6 +75,8 @@ export interface Scene {
   duration_seconds: number | null;
   character_ids: string[];
   preview_asset_id: string | null;
+  /** Prompts written by the AI Film Director (empty for hand-made scenes). */
+  ai_prompts: { image_prompt?: string; video_prompt?: string; narration?: string; style?: string; plan_job_id?: string };
   created_at: string | null;
   updated_at: string | null;
 }
@@ -100,6 +102,9 @@ export interface Asset {
   width: number | null;
   height: number | null;
   duration_seconds: number | null;
+  /** For generated assets: the AI provider and model that produced it. */
+  provider?: string | null;
+  model?: string | null;
   created_at: string | null;
 }
 
@@ -149,15 +154,23 @@ export function isJobActive(status: JobStatus): boolean {
 
 export interface CreditAccount {
   balance: number;
+  /** Subscription credits: expire at plan_credits_expire_at and do not roll over. Spent first. */
+  plan_balance: number;
+  plan_credits_expire_at: string | null;
+  /** Credit packages, the sign-up grant and admin grants: never expire. */
+  purchased_balance: number;
   updated_at: string | null;
 }
 
-export type CreditTxType = "grant" | "purchase" | "reserve" | "release" | "refund" | "adjustment";
+export type CreditTxType =
+  | "grant" | "purchase" | "plan_allowance" | "expire" | "reserve" | "release" | "refund" | "adjustment";
 
 export interface CreditTransaction {
   id: string;
   type: CreditTxType;
   amount: number;
+  plan_amount: number;
+  purchased_amount: number;
   balance_after: number;
   generation_job_id: string | null;
   reason: string | null;
@@ -193,7 +206,8 @@ export interface SettingField {
   show_when: Record<string, string[]> | null;
 }
 
-export type UnavailableReason = "provider_not_configured" | "pricing_not_configured";
+export type UnavailableReason =
+  | "provider_not_configured" | "pricing_not_configured" | "provider_disabled" | "model_retired" | "unsupported_model";
 
 export interface ProviderModel {
   id: string;
@@ -203,6 +217,9 @@ export interface ProviderModel {
   fields: SettingField[];
   usage_metrics: string[];
   pricing: { credits_per_1000: Record<string, number>; minimum_credits: number } | null;
+  deprecated: string | null;
+  shutdown_on: string | null;
+  is_default: boolean;
   available: boolean;
   unavailable_reason: UnavailableReason | null;
 }
@@ -211,6 +228,8 @@ export interface Provider {
   name: string;
   label: string;
   configured: boolean;
+  enabled: boolean;
+  capabilities: GenerationKind[];
   supports_cancel: boolean;
   models: ProviderModel[];
   credential_env?: string; // admin endpoint only
@@ -221,6 +240,60 @@ export interface Quote {
   estimated_credits: number | null;
   estimated_usage: Record<string, number>;
   balance: number;
+  provider: string;
+  model: string;
+  fallback_used: boolean;
+}
+
+// ---- AI routing, provider health and costs -----------------------------------------
+
+export interface CapabilityRoute {
+  kind: "text" | "image" | "video" | "speech";
+  preferred_provider: string | null;
+  fallback_providers: string[];
+  ready: { provider: string; model: string; fallback_used: boolean } | null;
+  problem: { code: string; message: string; details: { tried?: { provider: string; reason: string; message: string }[] } } | null;
+}
+
+export interface ProviderHealth {
+  name: string;
+  label: string;
+  credentials_configured: boolean;
+  settings_complete: boolean;
+  /** Names of missing environment variables. Values are never sent. */
+  missing_settings: string[];
+  enabled: boolean;
+  capabilities: GenerationKind[];
+  models: {
+    id: string; kind: GenerationKind; is_default: boolean; priced: boolean; deprecated: string | null;
+    shutdown_on: string | null; available: boolean; unavailable_reason: UnavailableReason | null;
+  }[];
+  connection_test: { available: boolean; description: string | null; may_charge: boolean };
+  last_test: {
+    tested_at: string | null; ok: boolean | null; result: string | null; last_success_at: string | null;
+    last_error: string | null; last_error_at: string | null;
+  } | null;
+}
+
+export interface ProviderCostRow {
+  provider: string;
+  model: string;
+  outcome: "completed" | "safety_blocked" | "failed_billed";
+  absorbed_by_aszda: boolean;
+  jobs: number;
+  estimated_usd: string | null;
+  jobs_with_estimate: number;
+  credits_charged: number;
+}
+
+export interface SceneGenerationResult {
+  kind: "image" | "video" | "voice";
+  job_id?: string;
+  created?: boolean;
+  provider?: string;
+  model?: string;
+  skipped?: string;
+  error?: { code: string; message: string };
 }
 
 // ---- Admin --------------------------------------------------------------------

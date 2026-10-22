@@ -1,4 +1,5 @@
-"""OpenAI text-to-speech adapter (POST https://api.openai.com/v1/audio/speech).
+"""OpenAI adapter: text-to-speech (POST https://api.openai.com/v1/audio/speech) and image
+generation (see openai_image.py).
 
 Request fields, model IDs, voices, formats and the 4096-character limit were
 checked against the official openai-python SDK source (generated from OpenAI's
@@ -23,6 +24,7 @@ from flask import current_app
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models import AssetKind, GenerationKind
+from app.providers import openai_image
 from app.providers.base import (
     JobContext,
     ModelSpec,
@@ -107,10 +109,16 @@ def _fields(model_id: str) -> list[SettingField]:
     return fields
 
 
-class OpenAISpeechAdapter(ProviderAdapter):
+class OpenAIAdapter(ProviderAdapter):
+    """OpenAI: text-to-speech (/v1/audio/speech) and image generation (/v1/images/generations)."""
+
     name = "openai"
-    label = "OpenAI Text-to-Speech"
+    label = "OpenAI"
     credential_env = "OPENAI_API_KEY"
+    default_model_settings = {GenerationKind.SPEECH: "OPENAI_TTS_MODEL",
+                              GenerationKind.IMAGE: "OPENAI_IMAGE_MODEL"}
+    connection_test = ("Reads the model information of the default voice and image models "
+                       "(GET /v1/models/{model}). Nothing is generated.")
 
     def is_configured(self) -> bool:
         return bool(current_app.config.get("OPENAI_API_KEY"))
@@ -121,18 +129,52 @@ class OpenAISpeechAdapter(ProviderAdapter):
                       params_model=SpeechParams, fields=_fields(mid), usage_metrics=["characters"],
                       deprecated=DEPRECATION_NOTE, shutdown_on=SHUTDOWN_ON)
             for mid, desc in MODELS.items()
-        ]
+        ] + openai_image.image_specs()
 
     def validate(self, model: ModelSpec, raw: dict[str, Any]) -> dict[str, Any]:
+        if model.kind == GenerationKind.IMAGE:
+            return super().validate(model, raw)
         data = dict(raw)
         data["model_id"] = model.id
         params = SpeechParams.model_validate(data).model_dump(mode="json", exclude_none=True)
         return params
 
     def estimate_usage(self, model: ModelSpec, params: dict[str, Any]) -> dict[str, float]:
+        if model.kind == GenerationKind.IMAGE:
+            return openai_image.estimate_usage(params)
         return {"characters": len(params["text"])}
 
+    def params_for_brief(self, model: ModelSpec, brief: dict[str, Any]) -> dict[str, Any]:
+        if model.kind == GenerationKind.IMAGE:
+            prompt = " ".join(x for x in (brief.get("prompt"), brief.get("style")) if x)[:4000]
+            size = "1024x1536" if brief.get("orientation") == "portrait" else "1536x1024"
+            return {"prompt": prompt, "size": size, "quality": "medium", "output_format": "png"}
+        return {"text": (brief.get("text") or "")[:4096], "voice": default_voice(model.id)}
+
+    def test_connection(self) -> str:
+        checked = []
+        for kind in (GenerationKind.SPEECH, GenerationKind.IMAGE):
+            spec = self.default_model(kind)
+            if spec is None:
+                continue
+            try:
+                response = httpx.get(f"https://api.openai.com/v1/models/{spec.id}", timeout=20.0,
+                                     headers={"Authorization": f"Bearer {current_app.config['OPENAI_API_KEY']}"})
+            except httpx.HTTPError as exc:
+                raise ProviderError("OpenAI could not be reached.", code="provider_unavailable") from exc
+            if response.status_code == 404:
+                raise ProviderError(f"The key works, but model '{spec.id}' is not available to it.",
+                                    code="model_unavailable")
+            if response.status_code != 200:
+                code, _ = classify_http_status(response.status_code)
+                raise ProviderError(f"OpenAI answered {response.status_code}.", code=code)
+            checked.append(spec.id)
+        return "Credential accepted; models available: " + ", ".join(checked)
+
     def submit(self, ctx: JobContext) -> ProviderOutcome:
+        spec = self.get_model(ctx.model)
+        if spec is not None and spec.kind == GenerationKind.IMAGE:
+            return openai_image.submit(ctx)
         p = ctx.params
         body: dict[str, Any] = {
             "model": ctx.model, "input": p["text"], "voice": p["voice"],
@@ -165,3 +207,7 @@ class OpenAISpeechAdapter(ProviderAdapter):
             result={"voice": p["voice"], "format": p["response_format"]},
             usage={"characters": len(p["text"])},
         )
+
+
+# Kept for code that still imports the old name.
+OpenAISpeechAdapter = OpenAIAdapter

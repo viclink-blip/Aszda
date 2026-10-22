@@ -1,6 +1,6 @@
 # Billing: prices, currency and Paystack payments
 
-## Status (2026-10-21)
+## Status (2026-10-21, re-checked 2026-10-22)
 
 | Item | Status |
 |---|---|
@@ -122,7 +122,11 @@ be confirmed on paystack.com.
 **Not verified at all:**
 - That **ASZDA's** account accepts and settles USD. No ASZDA Paystack account or key was
   available.
-- That USD *plans* (subscriptions) are allowed for a Kenyan account.
+- That USD *plans* (subscriptions) are allowed for a Kenyan account. Re-checked on 2026-10-22:
+  - The Plan API takes a `currency` field, but no official page lists which currencies plans accept.
+  - Paystack's Kenya help pages say M-Pesa cannot be used for recurring payments, so subscriptions would be card-only.
+  - Fees (search summaries of paystack.com/ke/pricing): 3.8% for international cards and for all cards in USD, 2.9% for local cards, 1.5% for M-Pesa. No separate conversion fee was found.
+  - Webhooks are signed with `x-paystack-signature`, an HMAC-SHA512 of the raw body with the secret key. ASZDA already verifies this.
 
 That is why checkout is off by default. ASZDA never falls back to charging KES: if Paystack refuses
 USD, the user sees that no payment was taken and the attempt is recorded as failed.

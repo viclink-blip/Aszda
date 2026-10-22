@@ -25,6 +25,10 @@ import type {
   Asset,
   AssetKind,
   AuditEvent,
+  CapabilityRoute,
+  ProviderCostRow,
+  ProviderHealth,
+  SceneGenerationResult,
   Character,
   CreditAccount,
   CreditTransaction,
@@ -348,6 +352,19 @@ export const api = {
     cancel: (id: string) => post<{ job: Job }>(`/api/generation-jobs/${id}/cancel`),
     retry: (id: string, idempotencyKey: string) =>
       post<{ job: Job }>(`/api/generation-jobs/${id}/retry`, {}, { "Idempotency-Key": idempotencyKey }),
+    /** For each kind of work: which provider and model would run it now. */
+    capabilities: () => get<{ capabilities: CapabilityRoute[] }>("/api/ai/capabilities"),
+  },
+
+  director: {
+    plan: (projectId: string, data: { idea: string; effort?: "low" | "medium" | "high" }, idempotencyKey: string) =>
+      post<{ job: Job }>(`/api/projects/${projectId}/director/plan`, data, { "Idempotency-Key": idempotencyKey }),
+    apply: (projectId: string, jobId: string) =>
+      post<{ scenes: Scene[] }>(`/api/projects/${projectId}/director/apply`, { job_id: jobId }),
+    generateScene: (projectId: string, sceneId: string,
+      data: { kinds: ("image" | "video" | "voice")[]; orientation?: "landscape" | "portrait" }, idempotencyKey: string) =>
+      post<{ results: SceneGenerationResult[] }>(`/api/projects/${projectId}/director/scenes/${sceneId}/generate`, data,
+        { "Idempotency-Key": idempotencyKey }),
   },
 
   billing: {
@@ -388,6 +405,11 @@ export const api = {
       get<Page<AdminJob>>("/api/admin/jobs", { ...q }),
     usage: (days: number) => get<UsageReport>("/api/admin/usage", { days }),
     providers: () => get<{ providers: Provider[] }>("/api/admin/providers"),
+    providerHealth: () => get<{ providers: ProviderHealth[]; routing: CapabilityRoute[] }>("/api/admin/providers/health"),
+    testProvider: (name: string, confirmCharge = false) =>
+      post<{ provider: ProviderHealth }>(`/api/admin/providers/${name}/test`, { confirm_charge: confirmCharge }),
+    providerCosts: (days: number) =>
+      get<{ period_days: number; rows: ProviderCostRow[]; note: string }>("/api/admin/provider-costs", { days }),
     auditEvents: (q: ListQuery & { action?: string } = {}) =>
       get<Page<AuditEvent>>("/api/admin/audit-events", { ...q }),
   },

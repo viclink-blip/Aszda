@@ -54,8 +54,8 @@ export default function HowItWorksPage() {
                 <PlannedBadge />
               </div>
               <p className="mt-2 text-muted">
-                Joining scenes, voice and music into one exported film is planned, as part of the AI Film
-                Director. Today you can download each generated asset individually.
+                Joining scenes, voice and music into one exported film is planned. Today the AI Film Director
+                plans and generates each scene&apos;s assets, and you download them individually.
               </p>
             </div>
           </li>
