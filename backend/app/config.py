@@ -110,6 +110,11 @@ class BaseConfig:
     RUNWAY_API_KEY = os.environ.get("RUNWAYML_API_SECRET", "")
     PROVIDER_POLL_INTERVAL_SECONDS = _int("ASZDA_PROVIDER_POLL_SECONDS", 10)
     PROVIDER_MAX_POLL_MINUTES = _int("ASZDA_PROVIDER_MAX_POLL_MINUTES", 30)
+    # Stuck-job recovery: a queued job older than this is failed and refunded...
+    STUCK_QUEUED_MINUTES = _int("ASZDA_STUCK_QUEUED_MINUTES", 30)
+    # ...and so is a running job with no provider task after this long (a Claude call can
+    # take up to 10 minutes per attempt, with retries).
+    STUCK_RUNNING_MINUTES = _int("ASZDA_STUCK_RUNNING_MINUTES", 45)
 
     # ---- Money and payments (see docs/BILLING.md) ------------------------------
     # Prices are shown in DISPLAY_CURRENCY. REFERENCE_CURRENCY amounts are optional,
@@ -127,6 +132,9 @@ class BaseConfig:
     # founder has confirmed the Paystack account accepts and settles USD
     # (docs/BILLING.md, "Enabling USD checkout"). ASZDA never converts a charge to KES.
     PAYSTACK_USD_ENABLED = _bool("ASZDA_PAYSTACK_USD_ENABLED", False)
+    # Payment processing fee assumed in admin margin reports (Paystack Kenya international
+    # card rate as published on paystack.com/ke/pricing, 3.8%; check it is still current).
+    PAYMENT_FEE_PERCENT = os.environ.get("ASZDA_PAYMENT_FEE_PERCENT", "3.8")
 
     LOG_LEVEL = os.environ.get("ASZDA_LOG_LEVEL", "INFO")
 

@@ -361,3 +361,61 @@ export interface BillingOverview {
   currency: CurrencyInfo;
   recent_payments: Payment[];
 }
+
+// ---- Admin pricing ------------------------------------------------------------------
+
+export interface ReferenceJob {
+  name: string;
+  usage: Record<string, number>;
+  credits: number | null;
+  provider_usd: number | null;
+}
+
+export interface AdminGenerationPrice {
+  provider: string;
+  provider_label: string;
+  configured: boolean;
+  credential_env: string;
+  model: string;
+  label: string;
+  kind: GenerationKind;
+  usage_metrics: string[];
+  source: "admin" | "file" | "override" | null;
+  enabled: boolean;
+  price: {
+    credits_per_1000: Record<string, number>;
+    minimum_credits: number;
+    provider_usd_per_1000: Record<string, number> | null;
+    provider_price_source: string | null;
+  } | null;
+  reference_jobs: ReferenceJob[];
+}
+
+export interface AdminSaleItem {
+  item_type: "plan" | "credit_package";
+  code: string;
+  name: string;
+  price: MoneyValue;
+  credits: number | null;
+  usd_per_credit: number | null;
+  net_revenue_usd: number;
+  max_provider_cost_usd: number | null;
+  gross_margin_percent: number | null;
+  paystack_plan_code?: string | null;
+  monthly_credit_limit?: number | null;
+}
+
+export interface AdminPricing {
+  generation: AdminGenerationPrice[];
+  plans: AdminSaleItem[];
+  credit_packages: AdminSaleItem[];
+  assumptions: { payment_fee_percent: string; worst_case_provider_usd_per_credit: number | null; explanation: string };
+}
+
+export interface GenerationPriceInput {
+  credits_per_1000: Record<string, number>;
+  minimum_credits: number;
+  provider_usd_per_1000: Record<string, number> | null;
+  provider_price_source: string | null;
+  enabled: boolean;
+}

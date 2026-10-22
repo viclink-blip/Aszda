@@ -15,7 +15,9 @@ Nothing has been deployed yet. This is the recommended path for a first staging/
 ## Processes to run
 1. **API**: `gunicorn --bind 0.0.0.0:5000 --workers 3 --timeout 120 wsgi:app` (the Docker image default).
 2. **Worker**: `celery -A celery_worker.celery worker --loglevel=info -Q aszda --concurrency=2`.
-   Scale workers for more parallel generations.
+   Scale workers for more parallel generations. Run **Celery beat in exactly one process**
+   (`celery -A celery_worker.celery beat`, or add `-B` to a single worker): it runs the stuck-job
+   sweeper every 5 minutes and ends expired plans hourly.
 3. **Web**: `npm run build && npm start` in `frontend/` (port 3000), with `ASZDA_API_URL` pointing at the API.
 4. **Reverse proxy**: `/api/` → API **directly**, everything else → web, HTTPS only.
    Important: in production, do not send API traffic through the Next.js `/api` rewrite. That rewrite

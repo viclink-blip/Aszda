@@ -10,6 +10,8 @@
 
 import type {
   AdminJob,
+  AdminPricing,
+  GenerationPriceInput,
   AdminPayment,
   BillingCatalog,
   BillingOverview,
@@ -365,6 +367,14 @@ export const api = {
 
   admin: {
     overview: () => get<AdminOverview>("/api/admin/overview"),
+    pricing: () => get<AdminPricing>("/api/admin/pricing"),
+    setGenerationPrice: (provider: string, model: string, data: GenerationPriceInput) =>
+      request<AdminPricing>("PUT", `/api/admin/pricing/generation/${provider}/${model}`, { body: data }),
+    clearGenerationPrice: (provider: string, model: string) =>
+      request<AdminPricing>("DELETE", `/api/admin/pricing/generation/${provider}/${model}`),
+    setBillingItem: (itemType: "plan" | "credit_package", code: string,
+      data: { credits: number | null; paystack_plan_code?: string | null; monthly_credit_limit?: number | null }) =>
+      request<AdminPricing>("PUT", `/api/admin/pricing/billing/${itemType}/${code}`, { body: data }),
     payments: (q: ListQuery & { status?: PaymentStatus | "" } = {}) =>
       get<Page<AdminPayment> & { checkout: CheckoutStatus }>("/api/admin/payments", { ...q }),
     users: (q: ListQuery & { q?: string } = {}) => get<Page<AdminUser>>("/api/admin/users", { ...q }),

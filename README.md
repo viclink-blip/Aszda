@@ -161,6 +161,7 @@ From the first build's browser smoke test: [docs/screenshots/](docs/screenshots/
 - [docs/DATABASE.md](docs/DATABASE.md) — tables and migrations
 - [docs/PROVIDERS.md](docs/PROVIDERS.md) — AI providers: what is verified, how to add one
 - [docs/CREDITS.md](docs/CREDITS.md) — credits, pricing and limits
+- [docs/CREDIT_PRICING_PROPOSAL.md](docs/CREDIT_PRICING_PROPOSAL.md) — audit of generation costs and the proposed credit prices (awaiting approval)
 - [docs/BILLING.md](docs/BILLING.md) — USD prices, KES reference, Paystack payments and how to test them
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — going to production
 - [docs/TESTING.md](docs/TESTING.md) — test strategy and commands

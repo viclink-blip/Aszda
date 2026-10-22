@@ -19,3 +19,17 @@ def poll_generation_job(job_id: str) -> None:
     from app.services import generation_service
 
     generation_service.poll_job(uuid.UUID(job_id))
+
+
+@celery.task(name="aszda.reap_stuck_jobs")
+def reap_stuck_jobs() -> dict:
+    from app.services import generation_service
+
+    return generation_service.reap_stuck_jobs()
+
+
+@celery.task(name="aszda.expire_subscriptions")
+def expire_subscriptions() -> int:
+    from app.services.payment_service import expire_overdue_subscriptions
+
+    return expire_overdue_subscriptions()

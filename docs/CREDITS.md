@@ -20,15 +20,26 @@ Each entry has a unique `reference` (`job:<id>:reserve`, `job:<id>:refund`, ...)
 rejects a second entry with the same reference, so retries can never double-charge or double-refund.
 Balances are changed under a row lock, so two parallel requests cannot spend the same credits.
 
-## Pricing file
-Nothing is priced by default — a model without a price **cannot be used**. Prices are a business
-decision, so they live in a JSON file you control:
+## Where credit prices are set
+
+1. **Admin → Pricing** (database, audited) — the normal place. Generation credit costs per model,
+   monthly credits and usage limit per plan, credits per package. USD prices are read-only there.
+2. **Pricing file** (`ASZDA_PRICING_FILE`, see `backend/pricing.example.json`) — a fallback for
+   models with no admin price. An admin price always wins; a disabled admin price blocks the model.
+3. `flask --app wsgi aszda pricing-apply <file> [--yes]` loads a whole pricing document (generation
+   costs plus plan and package credits) into Admin → Pricing. Without `--yes` it only previews.
+
+A model with no price cannot be used. The proposed values are in
+[CREDIT_PRICING_PROPOSAL.md](CREDIT_PRICING_PROPOSAL.md) and `backend/pricing.proposed.json`
+(**not active until approved**).
+
+Pricing-file format (also used for generation entries in a pricing document):
 
 ```json
 {
   "models": {
     "anthropic:claude-opus-5-5": {
-      "credits_per_1000": {"input_tokens": 1, "output_tokens": 5},
+      "credits_per_1000": {"input_tokens": 1.1, "output_tokens": 5.3},
       "minimum_credits": 1,
       "provider_usd_per_1000": {"input_tokens": 0.004, "output_tokens": 0.02}
     }
@@ -39,11 +50,9 @@ decision, so they live in a JSON file you control:
 - `credits_per_1000` — credits per 1,000 units of each usage metric the adapter reports
   (tokens, characters, video seconds...). Cost is rounded **up** to a whole credit.
 - `minimum_credits` — smallest charge per job.
-- `provider_usd_per_1000` — *optional*: what the provider charges you, used only in the admin usage
-  report as an **estimate**. Leave it out unless you have verified the provider's price.
+- `provider_usd_per_1000` — *optional*: what the provider charges you, used only in margin reports.
 
-Start from `backend/pricing.example.json` (placeholder numbers, **not approved prices**), set
-`ASZDA_PRICING_FILE`, restart API and worker, and run `flask --app wsgi aszda check-pricing`.
+Each job stores the price it started with, so changing a price never affects jobs already running.
 
 ### Worked example
 Claude job with "maximum length 4,000 tokens" and a 1,200-character prompt:
@@ -52,6 +61,7 @@ Claude job with "maximum length 4,000 tokens" and a 1,200-character prompt:
   **11 released**.
 
 ## Limits (enforced on the server)
+A per-plan monthly limit (Admin → Pricing) replaces `ASZDA_MONTHLY_CREDIT_LIMIT` for subscribers.
 `ASZDA_MAX_CREDITS_PER_JOB`, `ASZDA_MAX_ACTIVE_JOBS_PER_USER`, `ASZDA_DAILY_JOB_LIMIT`,
 `ASZDA_MONTHLY_CREDIT_LIMIT`, plus a verified email (`ASZDA_REQUIRE_VERIFIED_EMAIL`) and rate
 limits on job creation. The browser never decides a cost or a balance.
@@ -65,6 +75,7 @@ limits on job creation. The browser never decides a cost or a balance.
 | Temporary error → automatic retry (only before anything reached the provider) | charged once at most |
 | Provider took longer than `ASZDA_PROVIDER_MAX_POLL_MINUTES` | 0 — cancelled at provider if possible, refunded |
 | User cancelled | 0 — refunded |
+| Lost queue message or crashed worker (stuck job) | 0 — the sweeper fails and refunds it (every 5 minutes) |
 | Success | actual usage, never more than reserved |
 
 > Note for video providers: Runway reports a cost on failed tasks. ASZDA does not pass provider

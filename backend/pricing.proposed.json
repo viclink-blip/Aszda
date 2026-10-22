@@ -1,0 +1,46 @@
+{
+  "_comment": [
+    "PROPOSED credit pricing. NOT ACTIVE. Applied only with: flask --app wsgi aszda pricing-apply pricing.proposed.json --yes",
+    "Rule used: every generation earns at least 262.5 credits per US$1 of provider cost, which keeps a",
+    "50% gross margin after the 3.8% Paystack card fee even at the cheapest credit price sold (Studio Max, $0.00792/credit).",
+    "Provider prices and their sources are in docs/CREDIT_PRICING_PROPOSAL.md. USD subscription and package prices are not changed here."
+  ],
+  "generation": [
+    {"provider": "anthropic", "model": "claude-opus-5-5",
+     "credits_per_1000": {"input_tokens": 1.1, "output_tokens": 5.3}, "minimum_credits": 1,
+     "provider_usd_per_1000": {"input_tokens": 0.004, "output_tokens": 0.02},
+     "provider_price_source": "Anthropic pricing page (fetched 2026-10-22): $4 in / $20 out per 1M tokens"},
+    {"provider": "openai", "model": "tts-1",
+     "credits_per_1000": {"characters": 4}, "minimum_credits": 2,
+     "provider_usd_per_1000": {"characters": 0.015},
+     "provider_price_source": "OpenAI model page via search summary (2026-10-22): $15 per 1M characters; page reportedly marks tts-1 deprecated"},
+    {"provider": "openai", "model": "tts-1-hd",
+     "credits_per_1000": {"characters": 8}, "minimum_credits": 2,
+     "provider_usd_per_1000": {"characters": 0.03},
+     "provider_price_source": "OpenAI model page via search summary (2026-10-22): $30 per 1M characters; reportedly deprecated"},
+    {"provider": "openai", "model": "gpt-4o-mini-tts",
+     "credits_per_1000": {"characters": 8}, "minimum_credits": 2,
+     "provider_usd_per_1000": {"characters": 0.03},
+     "provider_price_source": "Token-priced ($0.60 text in / $12 audio out per 1M tokens, search summary); per-character cost NOT documented. Assumed $0.03 per 1,000 characters (about 2x the third-party $0.015/minute estimate)."},
+    {"provider": "runway", "model": "gen4.5",
+     "credits_per_1000": {"video_seconds": 32000}, "minimum_credits": 64,
+     "provider_usd_per_1000": {"video_seconds": 120},
+     "provider_price_source": "Runway API pricing page via search summary (2026-10-22): 12 credits/s, 1 API credit = $0.01"},
+    {"provider": "runway", "model": "veo3.1_fast",
+     "credits_per_1000": {"video_seconds": 27000, "video_seconds_with_audio": 40000}, "minimum_credits": 108,
+     "provider_usd_per_1000": {"video_seconds": 100, "video_seconds_with_audio": 150},
+     "provider_price_source": "Runway API pricing page via search summary (2026-10-22): 10 credits/s, 15 with audio; 1 API credit = $0.01"}
+  ],
+  "plans": [
+    {"code": "starter", "credits": 1000, "monthly_credit_limit": 5000},
+    {"code": "creator", "credits": 2200, "monthly_credit_limit": 10000},
+    {"code": "pro_studio", "credits": 6000, "monthly_credit_limit": 25000},
+    {"code": "studio_max", "credits": 12500, "monthly_credit_limit": 50000}
+  ],
+  "credit_packages": [
+    {"code": "small", "credits": 500},
+    {"code": "medium", "credits": 1000},
+    {"code": "large", "credits": 2600},
+    {"code": "professional", "credits": 5300}
+  ]
+}

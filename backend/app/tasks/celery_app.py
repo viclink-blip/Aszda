@@ -30,6 +30,11 @@ def init_celery(app: Flask) -> Celery:
         broker_connection_retry_on_startup=True,
         task_default_queue="aszda",
         timezone="UTC",
+        # Periodic housekeeping (needs one process running Celery beat, e.g. `worker -B`).
+        beat_schedule={
+            "reap-stuck-jobs": {"task": "aszda.reap_stuck_jobs", "schedule": 300.0},
+            "expire-subscriptions": {"task": "aszda.expire_subscriptions", "schedule": 3600.0},
+        },
     )
     celery.Task = FlaskTask
     celery.set_default()

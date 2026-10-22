@@ -118,14 +118,30 @@ def _check_limits(user: User, cost: int) -> None:
         raise APIError("You reached today's generation limit. It resets at midnight UTC.",
                        code="daily_limit_reached", status_code=429)
     month_start = day_start.replace(day=1)
+    # Settled jobs count what they were charged (0 for most failures); running jobs count
+    # their reservation.
     spent = db.session.scalar(select(func.coalesce(func.sum(
         func.coalesce(GenerationJob.credits_charged, GenerationJob.credits_reserved)), 0)).where(
-        GenerationJob.user_id == user.id, GenerationJob.created_at >= month_start,
-        GenerationJob.status.notin_([JobStatus.FAILED, JobStatus.CANCELLED])))
-    if spent + cost > cfg["MONTHLY_CREDIT_LIMIT"]:
+        GenerationJob.user_id == user.id, GenerationJob.created_at >= month_start))
+    limit = monthly_limit_for(user)
+    if spent + cost > limit:
         raise APIError("This request would go over your monthly usage limit.",
                        code="monthly_limit_reached", status_code=429,
-                       details={"used_this_month": spent, "limit": cfg["MONTHLY_CREDIT_LIMIT"]})
+                       details={"used_this_month": spent, "limit": limit})
+
+
+def monthly_limit_for(user: User) -> int:
+    """The plan's admin-set monthly limit when the user has an active plan, else the global one."""
+    from app.billing.catalog import monthly_credit_limit_for
+    from app.models import Subscription, SubscriptionStatus
+
+    sub = db.session.scalar(select(Subscription).where(Subscription.user_id == user.id))
+    if sub is not None and sub.status in (SubscriptionStatus.ACTIVE, SubscriptionStatus.NON_RENEWING,
+                                          SubscriptionStatus.PAST_DUE):
+        plan_limit = monthly_credit_limit_for(sub.plan_code)
+        if plan_limit:
+            return plan_limit
+    return current_app.config["MONTHLY_CREDIT_LIMIT"]
 
 
 def quote(user: User, *, provider: str, model: str, kind: GenerationKind,
@@ -511,3 +527,40 @@ def retry_job(user: User, job_id: uuid.UUID, idempotency_key: str) -> tuple[Gene
     return create_job(user, idempotency_key=idempotency_key, provider=job.provider, model=job.model,
                       kind=job.kind, params=job.input_params, project_id=job.project_id,
                       scene_id=job.scene_id, retry_of=job)
+
+
+# ---- Recovering stuck jobs ----------------------------------------------------------------
+
+def reap_stuck_jobs() -> dict[str, int]:
+    """Find jobs whose worker or queue message was lost and settle them, so reserved credits
+    never stay locked forever. Runs every few minutes (Celery beat) or via
+    `flask --app wsgi aszda reap-stuck-jobs`. Safe to run any number of times."""
+    cfg = current_app.config
+    counts = {"failed_queued": 0, "failed_lost_worker": 0, "repolled": 0}
+    queued_cutoff = now() - timedelta(minutes=cfg["STUCK_QUEUED_MINUTES"])
+    running_cutoff = now() - timedelta(minutes=cfg["STUCK_RUNNING_MINUTES"])
+    poll_cutoff = now() - timedelta(seconds=cfg["PROVIDER_POLL_INTERVAL_SECONDS"] * 3 + 300)
+
+    candidates = db.session.scalars(select(GenerationJob.id).where(
+        GenerationJob.status.in_(ACTIVE_STATUSES), GenerationJob.updated_at < max(queued_cutoff, poll_cutoff))).all()
+    for job_id in candidates:
+        job = _lock_job(job_id)
+        if job is None or job.status not in ACTIVE_STATUSES:
+            db.session.rollback()
+            continue
+        if job.status == JobStatus.QUEUED and job.updated_at < queued_cutoff:
+            _fail(job, ProviderError("The job waited too long in the queue. Your credits were returned.",
+                                     code="queue_timeout"))
+            counts["failed_queued"] += 1
+        elif job.status in (JobStatus.VALIDATING, JobStatus.PROCESSING) and not job.provider_job_id \
+                and job.updated_at < running_cutoff:
+            _fail(job, ProviderError("The job stopped unexpectedly. Your credits were returned.",
+                                     code="worker_lost"))
+            counts["failed_lost_worker"] += 1
+        elif job.status == JobStatus.PROCESSING and job.provider_job_id and job.updated_at < poll_cutoff:
+            db.session.rollback()
+            poll_job(job_id)  # resumes polling; past the deadline it cancels and refunds
+            counts["repolled"] += 1
+        else:
+            db.session.rollback()
+    return counts

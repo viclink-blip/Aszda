@@ -40,7 +40,10 @@ ordering, asset uploads and previews, job history per project.
 - ✅ Credit ledger, reservations, refunds, limits, admin grants, usage report
 - ✅ USD plan and credit-package prices, KES reference amounts (fixed rate 133), one formatter
 - ✅ Paystack checkout, verification, signed webhooks, subscriptions, receipts (tested with a mock)
-- 🔒 Credits per plan and per package (founder decision)
+- ✅ Admin → Pricing: generation credit costs, plan allowances, package credits, per-plan monthly limits, margin analysis
+- ✅ Stuck-job sweeper (lost queue messages, crashed workers) refunds reserved credits
+- 🔒 Approve the proposed credit costs and quantities (docs/CREDIT_PRICING_PROPOSAL.md)
+- ⏳ Expire unused monthly plan credits at renewal (awaiting decision)
 - 🔒 Confirm USD acceptance and settlement on ASZDA's Paystack account, then a real test payment
 - ⏳ Plan upgrades/downgrades, Paystack refund webhooks, tax invoices
 

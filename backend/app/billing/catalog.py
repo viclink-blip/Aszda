@@ -132,7 +132,49 @@ def set_override(catalog: Catalog | None) -> None:
 def get_catalog() -> Catalog:
     if _override is not None:
         return _override
-    return _load(current_app.config["BILLING_CATALOG_FILE"])
+    return apply_settings(_load(current_app.config["BILLING_CATALOG_FILE"]))
+
+
+def apply_settings(base: Catalog) -> Catalog:
+    """Overlay admin settings (credits, Paystack plan codes) on the file's catalog.
+    Prices always come from the file."""
+    from dataclasses import replace
+
+    from sqlalchemy import select
+
+    from app.extensions import db
+    from app.models import BillingItemSetting
+
+    settings = {(s.item_type, s.code): s for s in db.session.scalars(select(BillingItemSetting))}
+    if not settings:
+        return base
+    plans = []
+    for plan in base.plans:
+        s = settings.get(("plan", plan.code))
+        if s is not None and not plan.is_free:
+            plan = replace(plan, monthly_credits=s.credits if s.credits is not None else plan.monthly_credits,
+                           paystack_plan_code=s.paystack_plan_code or plan.paystack_plan_code)
+        plans.append(plan)
+    packages = []
+    for package in base.credit_packages:
+        s = settings.get(("credit_package", package.code))
+        if s is not None and s.credits is not None:
+            package = replace(package, credits=s.credits)
+        packages.append(package)
+    return Catalog(plans=tuple(plans), credit_packages=tuple(packages))
+
+
+def monthly_credit_limit_for(plan_code: str | None) -> int | None:
+    """The admin-set monthly generation limit for a plan, if any."""
+    if not plan_code:
+        return None
+    from sqlalchemy import select
+
+    from app.extensions import db
+    from app.models import BillingItemSetting
+
+    return db.session.scalar(select(BillingItemSetting.monthly_credit_limit).where(
+        BillingItemSetting.item_type == "plan", BillingItemSetting.code == plan_code))
 
 
 def plan_out(plan: Plan) -> dict:

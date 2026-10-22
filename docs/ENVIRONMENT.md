@@ -51,7 +51,7 @@ locally — `python-dotenv` loads that file). The template with every variable i
 | `ASZDA_MAX_CREDITS_PER_JOB` | `500` | A single job costing more is refused. |
 | `ASZDA_MAX_ACTIVE_JOBS_PER_USER` | `3` | Concurrent running jobs per user. |
 | `ASZDA_DAILY_JOB_LIMIT` | `50` | Jobs per user per UTC day. |
-| `ASZDA_MONTHLY_CREDIT_LIMIT` | `5000` | Credits per user per calendar month (UTC). |
+| `ASZDA_MONTHLY_CREDIT_LIMIT` | `5000` | Credits per user per calendar month (UTC) for users without a plan-specific limit (set per plan in Admin → Pricing). |
 | `ASZDA_REQUIRE_VERIFIED_EMAIL` | `true` | Require a confirmed email before generating. |
 | `ASZDA_RATELIMIT_STORAGE_URI` | `memory://` | Use `redis://...` in production so all processes share limits. |
 | `ASZDA_RATELIMIT_DEFAULT` | `300 per minute` | Default limit for every endpoint. |
@@ -66,6 +66,8 @@ locally — `python-dotenv` loads that file). The template with every variable i
 | `RUNWAYML_API_SECRET` | Runway video | From the Runway developer portal. |
 | `ASZDA_PROVIDER_POLL_SECONDS` | | How often to check asynchronous jobs (default 10; Runway asks for ≥ 5). |
 | `ASZDA_PROVIDER_MAX_POLL_MINUTES` | | Give up (and refund) after this long (default 30). |
+| `ASZDA_STUCK_QUEUED_MINUTES` | `30` | A job still queued after this long (lost queue message) is failed and refunded by the sweeper. |
+| `ASZDA_STUCK_RUNNING_MINUTES` | `45` | A running job with no provider task after this long (crashed worker) is failed and refunded. |
 
 ## Billing and payments (see [BILLING.md](BILLING.md))
 
@@ -75,6 +77,7 @@ locally — `python-dotenv` loads that file). The template with every variable i
 | `ASZDA_BILLING_CATALOG_FILE` | `backend/billing_catalog.json` | Plans and credit packages (prices in US cents). |
 | `PAYSTACK_SECRET_KEY` | *(empty)* | `sk_test_...` or `sk_live_...`. Empty = payments off. Server only. |
 | `ASZDA_PAYSTACK_USD_ENABLED` | `false` | Set to `true` only after confirming the Paystack account accepts and settles USD. |
+| `ASZDA_PAYMENT_FEE_PERCENT` | `3.8` | Card fee assumed in Admin → Pricing margin reports (Paystack Kenya international card rate). |
 | `ASZDA_ALLOW_TEST_PAYMENTS` | `false` | Production refuses a test key unless this is `true` (staging only). |
 
 ## Frontend

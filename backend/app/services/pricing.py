@@ -82,7 +82,37 @@ def set_override(prices: dict[str, ModelPrice] | None) -> None:
     _overrides = prices
 
 
+def price_from_row(row) -> ModelPrice:
+    return ModelPrice(credits_per_1000=dict(row.credits_per_1000), minimum_credits=row.minimum_credits,
+                      provider_usd_per_1000=dict(row.provider_usd_per_1000 or {}))
+
+
+def price_source(provider: str, model: str) -> str | None:
+    """Where a model's price comes from: "admin", "file" or None (not priced)."""
+    if _overrides is not None:
+        return "override" if f"{provider}:{model}" in _overrides else None
+    row = _admin_row(provider, model)
+    if row is not None:
+        return "admin" if row.enabled else None
+    return "file" if f"{provider}:{model}" in _load(current_app.config.get("PRICING_FILE", "")) else None
+
+
+def _admin_row(provider: str, model: str):
+    from sqlalchemy import select
+
+    from app.extensions import db
+    from app.models import GenerationPrice
+
+    return db.session.scalar(select(GenerationPrice).where(
+        GenerationPrice.provider == provider, GenerationPrice.model == model))
+
+
 def price_for(provider: str, model: str) -> ModelPrice | None:
+    """Admin settings (database) win; the pricing file is the fallback. A disabled admin row
+    means "not for sale" even if the file prices it."""
     if _overrides is not None:
         return _overrides.get(f"{provider}:{model}")
+    row = _admin_row(provider, model)
+    if row is not None:
+        return price_from_row(row) if row.enabled else None
     return _load(current_app.config.get("PRICING_FILE", "")).get(f"{provider}:{model}")

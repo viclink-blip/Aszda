@@ -51,7 +51,8 @@ services:
 
   worker:
     build: ./backend
-    command: ["celery", "-A", "celery_worker.celery", "worker", "--loglevel=info", "-Q", "aszda", "--concurrency=2"]
+    # -B also runs Celery beat (stuck-job recovery, plan expiry). Run beat in ONE process only.
+    command: ["celery", "-A", "celery_worker.celery", "worker", "-B", "--loglevel=info", "-Q", "aszda", "--concurrency=2"]
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://aszda:aszda@db:5432/aszda

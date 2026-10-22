@@ -154,6 +154,33 @@ def register_cli(app: Flask) -> None:
                 click.echo(f"USD check: Paystack REFUSED a USD transaction: {exc.message}")
                 click.echo("Keep ASZDA_PAYSTACK_USD_ENABLED=false and ask Paystack to enable USD.")
 
+    @group.command("pricing-apply")
+    @click.argument("path", type=click.Path(exists=True, dir_okay=False))
+    @click.option("--yes", is_flag=True, help="Apply. Without it, only show what would change.")
+    def pricing_apply(path: str, yes: bool) -> None:
+        """Load generation credit costs and plan/package credits from a JSON file into the admin
+        settings (see backend/pricing.proposed.json). USD prices are never changed by this."""
+        import json
+
+        from app.services.pricing_settings import apply_pricing_document
+
+        with open(path, encoding="utf-8") as fh:
+            document = json.load(fh)
+        try:
+            changes = apply_pricing_document(document, actor_id=None, commit=yes)
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+        for line in changes:
+            click.echo(line)
+        click.echo("Applied." if yes else "Dry run only: nothing changed. Re-run with --yes to apply.")
+
+    @group.command("reap-stuck-jobs")
+    def reap_stuck_jobs() -> None:
+        """Fail and refund generation jobs whose worker or queue message was lost."""
+        from app.services.generation_service import reap_stuck_jobs as reap
+
+        click.echo(reap())
+
     @group.command("expire-subscriptions")
     def expire_subscriptions() -> None:
         """End cancelled plans whose paid period is over (run daily)."""
