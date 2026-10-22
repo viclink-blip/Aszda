@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from flask import current_app
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
 from app.errors import APIError, Conflict, Unauthorized
@@ -17,6 +19,7 @@ from app.models import (
     AuthSession,
     RefreshToken,
     Role,
+    SignupGrantClaim,
     TokenPurpose,
     User,
     UserProfile,
@@ -71,10 +74,6 @@ def register(email_addr: str, password: str, display_name: str) -> User:
         raise Conflict("An account with this email already exists.", code="email_taken") from exc
 
     credit_service.ensure_account(user.id)
-    grant = current_app.config["SIGNUP_CREDIT_GRANT"]
-    if grant > 0:
-        credit_service.grant(user.id, grant, reference=f"signup:{user.id}",
-                             reason="Sign-up credit grant", actor_id=None)
     audit.record("user.registered", actor_id=user.id, target_type="user", target_id=user.id)
     token = _issue_user_token(user, TokenPurpose.VERIFY_EMAIL)
     db.session.commit()
@@ -214,11 +213,58 @@ def send_verification(user: User) -> None:
 
 def verify_email(raw_token: str) -> User:
     user = _consume_user_token(raw_token, TokenPurpose.VERIFY_EMAIL)
-    if user.email_verified_at is None:
+    first_time = user.email_verified_at is None
+    if first_time:
         user.email_verified_at = now()
     audit.record("user.email_verified", actor_id=user.id, target_type="user", target_id=user.id)
+    if first_time:
+        grant_signup_credits(user)
     db.session.commit()
     return user
+
+
+def canonical_email(address: str) -> str:
+    """One key per real inbox: lower-case, "+tag" removed, and for Gmail dots removed."""
+    local, _, domain = address.strip().lower().rpartition("@")
+    local = local.split("+", 1)[0]
+    if domain in ("gmail.com", "googlemail.com"):
+        local, domain = local.replace(".", ""), "gmail.com"
+    return f"{local}@{domain}"
+
+
+def grant_signup_credits(user: User) -> bool:
+    """Give the one-time free sign-up credits, at most once per inbox. Returns True if given.
+
+    Called when the account first confirms its email (so a working inbox is needed). Safe to
+    call again or in parallel: the claim row is unique per canonical address and survives
+    account deletion, and the ledger reference is unique per account."""
+    amount = current_app.config["SIGNUP_CREDIT_GRANT"]
+    if amount <= 0 or user.role != Role.USER:
+        return False
+    cap = current_app.config["SIGNUP_GRANT_DAILY_CAP"]
+    if cap:
+        day_start = now().replace(hour=0, minute=0, second=0, microsecond=0)
+        given_today = db.session.scalar(select(func.count()).select_from(SignupGrantClaim)
+                                        .where(SignupGrantClaim.created_at >= day_start))
+        if given_today >= cap:
+            log.warning("Sign-up grant daily cap (%s) reached; not granting to %s", cap, user.id)
+            audit.record("credits.signup_grant_skipped", actor_id=user.id, target_type="user",
+                         target_id=user.id, reason="daily_cap")
+            return False
+    key = hashlib.sha256(canonical_email(user.email).encode("utf-8")).hexdigest()
+    claimed = db.session.execute(
+        pg_insert(SignupGrantClaim).values(id=uuid.uuid4(), email_key=key, user_id=user.id, credits=amount)
+        .on_conflict_do_nothing(index_elements=["email_key"]).returning(SignupGrantClaim.id)
+    ).scalar()
+    if claimed is None:
+        audit.record("credits.signup_grant_skipped", actor_id=user.id, target_type="user",
+                     target_id=user.id, reason="already_claimed_for_this_inbox")
+        return False
+    credit_service.grant(user.id, amount, reference=f"signup:{user.id}", reason="Free sign-up credits",
+                         actor_id=None)
+    audit.record("credits.signup_granted", actor_id=user.id, target_type="user", target_id=user.id,
+                 credits=amount)
+    return True
 
 
 def request_password_reset(email_addr: str) -> None:

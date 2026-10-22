@@ -35,10 +35,15 @@ def provider_catalog() -> list[dict]:
                 "usage_metrics": spec.usage_metrics,
                 "pricing": {"credits_per_1000": price.credits_per_1000,
                             "minimum_credits": price.minimum_credits} if price else None,
-                # Usable only when the API key is set AND a credit price is configured.
-                "available": configured and price is not None,
-                "unavailable_reason": None if configured and price else (
-                    "provider_not_configured" if not configured else "pricing_not_configured"),
+                "deprecated": spec.deprecated,
+                "shutdown_on": spec.shutdown_on.isoformat() if spec.shutdown_on else None,
+                # Usable only when the API key is set, a credit price is configured and the
+                # provider has not shut the model down.
+                "available": configured and price is not None and not spec.is_retired(),
+                "unavailable_reason": (
+                    "provider_not_configured" if not configured else
+                    "model_retired" if spec.is_retired() else
+                    "pricing_not_configured" if price is None else None),
             })
         catalog.append({
             "name": adapter.name, "label": adapter.label, "configured": configured,

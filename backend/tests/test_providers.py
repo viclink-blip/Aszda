@@ -253,11 +253,24 @@ def test_runway_failure_and_missing_task_id(app_ctx, monkeypatch):
         adapter.submit(ctx("gen4.5", params))
     assert err.value.code == "unexpected_provider_response"
 
+    # Safety block: generic message (Runway asks not to show the code's detail), no retry, the
+    # customer is not charged, and the usage Runway bills is marked as ASZDA's own cost.
     monkeypatch.setattr(httpx, "request", lambda *a, **k: httpx.Response(
-        200, json={"status": "FAILED", "failure": "Moderation", "failureCode": "SAFETY.INPUT"}))
+        200, json={"status": "FAILED", "failure": "Moderation", "failureCode": "SAFETY.INPUT.TEXT"}))
     with pytest.raises(ProviderError) as err:
         adapter.poll(ctx("gen4.5", params, provider_job_id="t"))
-    assert err.value.message == "Moderation" and not err.value.retryable
+    assert err.value.code == "content_refused" and not err.value.retryable
+    assert "SAFETY" not in err.value.message and "credits were returned" in err.value.message
+    assert err.value.usage == {} and err.value.absorbed_usage == {"video_seconds": 5}
+    assert err.value.provider_reported == {"failureCode": "SAFETY.INPUT.TEXT", "safety_block": True}
+
+    # Any other failure: Runway refunds it, so nothing is billed to anyone.
+    monkeypatch.setattr(httpx, "request", lambda *a, **k: httpx.Response(
+        200, json={"status": "FAILED", "failure": "Internal", "failureCode": "INTERNAL.BAD_OUTPUT"}))
+    with pytest.raises(ProviderError) as err:
+        adapter.poll(ctx("gen4.5", params, provider_job_id="t"))
+    assert err.value.message == "Internal" and err.value.code == "runway_internal.bad_output"
+    assert err.value.usage == {} and err.value.absorbed_usage == {}
 
 
 def test_runway_download_rejects_non_https(app_ctx, monkeypatch):

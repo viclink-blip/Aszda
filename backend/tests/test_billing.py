@@ -420,9 +420,14 @@ def test_subscription_lifecycle(app, client, make_user, fake_paystack):
     renewal = {"event": "charge.success", "data": {"id": 99, "reference": "T_renewal_1", "plan": plan_obj,
                                                    "customer": {"customer_code": "CUS_maya"}}}
     assert signed(app, client, renewal).get_json()["outcome"] == "renewal_succeeded"
-    assert balance(app, user) == 600
+    # No rollover: the 300 unused credits of the first period expire, the new period gives 300.
+    assert balance(app, user) == 300
     assert signed(app, client, renewal).get_json()["outcome"] == "duplicate"
-    assert balance(app, user) == 600
+    assert balance(app, user) == 300
+    credits = user.get("/api/me/credits").get_json()
+    assert [t["type"] for t in credits["transactions"]["items"]] == ["plan_allowance", "expire", "plan_allowance"]
+    assert credits["account"]["plan_balance"] == 300 and credits["account"]["purchased_balance"] == 0
+    assert credits["account"]["plan_credits_expire_at"] is not None
 
     # Cancel: Paystack is told, the plan stops renewing.
     cancelled = user.post("/api/billing/subscription/cancel")

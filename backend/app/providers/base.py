@@ -19,6 +19,7 @@ import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -53,6 +54,12 @@ class ModelSpec:
     params_model: type[BaseModel]
     fields: list[SettingField]
     usage_metrics: list[str]
+    # Provider-announced retirement: shown to users, and the model is refused from this date.
+    deprecated: str | None = None      # a short note, e.g. "Deprecated by OpenAI"
+    shutdown_on: date | None = None
+
+    def is_retired(self, today: date | None = None) -> bool:
+        return self.shutdown_on is not None and (today or datetime.now(UTC).date()) >= self.shutdown_on
 
 
 @dataclass
@@ -82,17 +89,24 @@ class ProviderError(Exception):
     """A provider call failed.
 
     retryable: the same request may succeed later (rate limit, outage, timeout).
-    usage:     anything the provider says it billed despite the failure, so the
-               user is charged only for usage that really happened.
+    usage:     anything the provider says it billed despite the failure that the
+               user is charged for (for example a refused text request).
+    absorbed_usage: usage the provider bills ASZDA for but the user is NOT charged
+               (for example a video blocked by the provider's safety system). It is
+               recorded as ASZDA's business cost; the user gets a full refund.
+    provider_reported: any cost figure the provider returned, kept for reconciliation.
     """
 
     def __init__(self, message: str, *, code: str = "provider_error", retryable: bool = False,
-                 usage: dict[str, float] | None = None):
+                 usage: dict[str, float] | None = None, absorbed_usage: dict[str, float] | None = None,
+                 provider_reported: dict[str, Any] | None = None):
         super().__init__(message)
         self.message = message
         self.code = code
         self.retryable = retryable
         self.usage = usage or {}
+        self.absorbed_usage = absorbed_usage or {}
+        self.provider_reported = provider_reported
 
 
 @dataclass

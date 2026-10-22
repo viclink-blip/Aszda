@@ -29,7 +29,6 @@ from app.billing.catalog import get_catalog
 from app.errors import APIError, Conflict, NotFound, ServiceUnavailable
 from app.extensions import db
 from app.models import (
-    CreditTxType,
     Payment,
     PaymentEvent,
     PaymentKind,
@@ -261,15 +260,22 @@ def confirm_payment(reference: str, *, user: User | None = None) -> Payment:
         return payment
 
     payment.status = PaymentStatus.SUCCEEDED
-    if payment.credits_to_grant > 0:
-        credit_service.ensure_account(payment.user_id)
-        credit_service._apply(payment.user_id, payment.credits_to_grant, CreditTxType.PURCHASE,
-                              f"payment:{payment.id}:credits",
-                              reason=f"{payment.item_name} ({payment.kind.value.replace('_', ' ')})",
-                              details={"payment_id": str(payment.id), "reference": payment.reference})
-        payment.credits_granted_at = now()
+    ledger_details = {"payment_id": str(payment.id), "reference": payment.reference}
+    reason = f"{payment.item_name} ({payment.kind.value.replace('_', ' ')})"
     if payment.kind in (PaymentKind.SUBSCRIPTION, PaymentKind.SUBSCRIPTION_RENEWAL):
-        _activate_subscription(payment, tx)
+        sub = _activate_subscription(payment, tx)
+        # A new paid period: last period's unused plan credits expire, this period's allowance
+        # is valid until the period ends (no rollover).
+        credit_service.start_plan_period(payment.user_id, payment.credits_to_grant,
+                                         expires_at=sub.current_period_end,
+                                         reference=f"payment:{payment.id}:credits", reason=reason,
+                                         details=ledger_details)
+    elif payment.credits_to_grant > 0:
+        credit_service.add_purchased(payment.user_id, payment.credits_to_grant,
+                                     reference=f"payment:{payment.id}:credits", reason=reason,
+                                     details=ledger_details)
+    if payment.credits_to_grant > 0:
+        payment.credits_granted_at = now()
     audit.record("payment.succeeded", actor_id=payment.user_id, target_type="payment",
                  target_id=payment.id, amount_minor=payment.amount_minor, currency=payment.currency,
                  item=payment.item_code)
@@ -277,7 +283,7 @@ def confirm_payment(reference: str, *, user: User | None = None) -> Payment:
     return payment
 
 
-def _activate_subscription(payment: Payment, tx: dict) -> None:
+def _activate_subscription(payment: Payment, tx: dict) -> Subscription:
     sub = db.session.scalar(select(Subscription).where(Subscription.user_id == payment.user_id)
                             .with_for_update())
     customer_code = (tx.get("customer") or {}).get("customer_code")
@@ -292,6 +298,8 @@ def _activate_subscription(payment: Payment, tx: dict) -> None:
         sub.current_period_end = period_end
     if customer_code:
         sub.paystack_customer_code = customer_code
+    db.session.flush()
+    return sub
 
 
 # ---- Webhooks ---------------------------------------------------------------------------------
@@ -380,6 +388,8 @@ def _sync_subscription(code) -> str:
     next_payment = _parse_time(remote.get("next_payment_date"))
     if next_payment:
         sub.current_period_end = next_payment
+        # Paystack's next payment date is the real end of the period the plan credits belong to.
+        credit_service.set_plan_expiry(sub.user_id, next_payment)
     if remote.get("status") == "active":
         sub.status = SubscriptionStatus.ACTIVE
     db.session.commit()
@@ -444,4 +454,8 @@ def expire_overdue_subscriptions() -> int:
         sub.status = SubscriptionStatus.CANCELLED
         count += 1
     db.session.commit()
+    # Plan credits of ended billing periods (they are also expired on the next read or spend).
+    expired = credit_service.expire_due_plan_credits()
+    if expired:
+        log.info("Expired plan credits on %s account(s)", expired)
     return count

@@ -19,10 +19,12 @@ import threading
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from flask import current_app
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 
 from app.errors import APIError, Conflict, NotFound, ServiceUnavailable
@@ -35,13 +37,14 @@ from app.models import (
     GenerationKind,
     JobStatus,
     Project,
+    ProviderCost,
     Scene,
     User,
 )
 from app.models.generation import TRANSITIONS
 from app.providers import registry
 from app.providers.base import JobContext, ProviderAdapter, ProviderError, ProviderOutcome
-from app.services import asset_service, credit_service, pricing
+from app.services import asset_service, audit, credit_service, pricing
 from app.storage.backends import get_storage
 
 log = logging.getLogger(__name__)
@@ -83,6 +86,9 @@ def _resolve_adapter(provider: str, model: str, kind: GenerationKind):
     if spec is None or spec.kind != kind:
         raise APIError(f"{adapter.label} does not offer '{model}' for {kind.value} generation.",
                        code="unsupported_model", status_code=422)
+    if spec.is_retired():
+        raise APIError(f"{adapter.label} retired '{model}' on {spec.shutdown_on.isoformat()}. "
+                       "Choose another model.", code="model_retired", status_code=422)
     if not adapter.is_configured():
         raise ServiceUnavailable(
             f"{adapter.label} is not connected yet. An administrator needs to add its API key.",
@@ -213,7 +219,8 @@ def create_job(user: User, *, idempotency_key: str, provider: str, model: str, k
         request_fingerprint=request_fp, kind=kind, provider=provider, model=model,
         input_params=clean, status=JobStatus.QUEUED, credits_reserved=cost,
         usage={"estimate": estimate, "pricing": {
-            "credits_per_1000": price.credits_per_1000, "minimum_credits": price.minimum_credits}},
+            "credits_per_1000": price.credits_per_1000, "minimum_credits": price.minimum_credits,
+            "provider_usd_per_1000": price.provider_usd_per_1000 or {}}},
     )
     db.session.add(job)
     try:
@@ -431,6 +438,9 @@ def _complete(job_id: uuid.UUID, outcome: ProviderOutcome) -> None:
     job.result = {**(outcome.result or {}), "asset_ids": asset_ids}
     job.usage = {**job.usage, "actual": outcome.usage}
     _settle(job, charged, success=True)
+    _record_provider_cost(job, "completed", outcome.usage or job.usage.get("estimate") or {},
+                          reported=(outcome.result or {}).get("runway_cost") and
+                          {"cost": outcome.result["runway_cost"]}, absorbed=False)
     db.session.commit()
 
 
@@ -462,6 +472,13 @@ def _fail(job: GenerationJob, exc: ProviderError) -> None:
     job.error_code = exc.code
     job.error_message = exc.message
     _settle(job, charged, success=False)
+    if exc.absorbed_usage:
+        # The provider billed ASZDA, the customer is refunded: record it as ASZDA's cost.
+        job.usage = {**job.usage, "provider_billed": exc.absorbed_usage}
+        _record_provider_cost(job, "safety_blocked" if exc.code == "content_refused" else "failed_billed",
+                              exc.absorbed_usage, reported=exc.provider_reported, absorbed=True)
+    elif exc.usage:
+        _record_provider_cost(job, "failed_billed", exc.usage, reported=exc.provider_reported, absorbed=False)
     db.session.commit()
 
 
@@ -471,6 +488,23 @@ def _settle(job: GenerationJob, charged: int, *, success: bool) -> None:
     credit_service.settle_job(job.user_id, job.id, job.credits_reserved, charged, success=success)
     job.credits_charged = charged
     job.credits_settled_at = now()
+
+
+def _record_provider_cost(job: GenerationJob, outcome: str, usage: dict, *, reported: dict | None,
+                          absorbed: bool) -> None:
+    """Write ASZDA's provider cost for a job once (unique reference; repeats are ignored)."""
+    snapshot = (job.usage or {}).get("pricing") or {}
+    usd = pricing.ModelPrice(**snapshot).provider_usd_for(usage) if snapshot else None
+    db.session.execute(insert(ProviderCost).values(
+        id=uuid.uuid4(), reference=f"job:{job.id}:provider_cost", generation_job_id=job.id,
+        user_id=job.user_id, provider=job.provider, model=job.model, outcome=outcome, usage=usage,
+        estimated_usd=Decimal(str(usd)) if usd is not None else None, provider_reported=reported or None,
+        credits_charged_to_customer=job.credits_charged or 0, absorbed_by_aszda=absorbed,
+    ).on_conflict_do_nothing(index_elements=["reference"]))
+    if absorbed:
+        audit.record("generation.provider_cost_absorbed", actor_id=None, target_type="generation_job",
+                     target_id=job.id, outcome=outcome, usage=usage,
+                     estimated_usd=str(usd) if usd is not None else None)
 
 
 def _try_provider_cancel(adapter: ProviderAdapter | None, job: GenerationJob) -> bool:

@@ -4,10 +4,18 @@ Request fields, model IDs, voices, formats and the 4096-character limit were
 checked against the official openai-python SDK source (generated from OpenAI's
 API spec) on 2026-10-21; see docs/PROVIDERS.md. Credential: OPENAI_API_KEY.
 Usage metric: characters.
+
+Model status (OpenAI deprecations page and text-to-speech guide, read through search
+summaries on 2026-10-22; re-check on the live pages): tts-1, tts-1-hd and gpt-4o-mini-tts
+are all deprecated, with shutdown on 2027-01-06. OpenAI's suggested replacement
+(gpt-realtime-2.1-mini) uses the Realtime API, not /v1/audio/speech, so it is not a drop-in
+model swap and is not implemented here. From the shutdown date these models are refused
+instead of failing at OpenAI.
 """
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Literal
 
 import httpx
@@ -28,12 +36,25 @@ from app.providers.base import (
 
 ENDPOINT = "https://api.openai.com/v1/audio/speech"
 MODELS = {
-    "gpt-4o-mini-tts": "Natural voices; accepts speaking-style instructions.",
-    "tts-1": "Fast, lower latency.",
-    "tts-1-hd": "Higher quality, slower.",
+    "gpt-4o-mini-tts": "Recommended. Natural voices; accepts speaking-style instructions.",
+    "tts-1": "Fast, lower latency. Fewer voices.",
+    "tts-1-hd": "Higher quality, slower. Fewer voices.",
 }
+SHUTDOWN_ON = date(2027, 1, 6)
+DEPRECATION_NOTE = ("OpenAI has deprecated this voice model; it stops working on 6 January 2027.")
 VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin",
           "cedar", "fable", "onyx", "nova"]
+# tts-1 and tts-1-hd support fewer voices than gpt-4o-mini-tts (createSpeech reference).
+LEGACY_VOICES = ["alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"]
+LEGACY_MODELS = ("tts-1", "tts-1-hd")
+
+
+def voices_for(model_id: str) -> list[str]:
+    return LEGACY_VOICES if model_id in LEGACY_MODELS else VOICES
+
+
+def default_voice(model_id: str) -> str:
+    return "alloy" if model_id in LEGACY_MODELS else "marin"
 FORMATS = {"mp3": "audio/mpeg", "wav": "audio/wav", "opus": "audio/opus", "aac": "audio/aac",
            "flac": "audio/flac"}
 
@@ -44,26 +65,31 @@ class SpeechParams(BaseModel):
     model_id: str = Field(exclude=True, default="")
     text: str = Field(min_length=1, max_length=4096)
     voice: Literal["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin",
-                   "cedar", "fable", "onyx", "nova"] = "marin"
+                   "cedar", "fable", "onyx", "nova"] | None = None
     response_format: Literal["mp3", "wav", "opus", "aac", "flac"] = "mp3"
     speed: float = Field(default=1.0, ge=0.25, le=4.0)
     instructions: str | None = Field(default=None, max_length=1000)
     language: str | None = Field(default=None, max_length=40)
 
     @model_validator(mode="after")
-    def instructions_supported(self):
-        if self.instructions and self.model_id in ("tts-1", "tts-1-hd"):
-            raise ValueError("Speaking instructions only work with gpt-4o-mini-tts.")
+    def model_support(self):
+        if self.voice is None:
+            self.voice = default_voice(self.model_id)
+        if self.voice not in voices_for(self.model_id):
+            raise ValueError(f"{self.model_id} does not offer the voice '{self.voice}'. "
+                             f"Choose one of: {', '.join(voices_for(self.model_id))}.")
+        if (self.instructions or self.language) and self.model_id in LEGACY_MODELS:
+            raise ValueError("Speaking style and language hints only work with gpt-4o-mini-tts.")
         return self
 
 
 def _fields(model_id: str) -> list[SettingField]:
     fields = [
         SettingField("text", "Text to speak", "textarea", required=True, max_length=4096),
-        SettingField("voice", "Voice", "select", default="marin",
-                     options=[{"value": v, "label": v.capitalize()} for v in VOICES],
-                     help="OpenAI notes that voice availability can differ by model; "
-                          "marin and cedar are its recommended voices."),
+        SettingField("voice", "Voice", "select", default=default_voice(model_id),
+                     options=[{"value": v, "label": v.capitalize()} for v in voices_for(model_id)],
+                     help="Marin and Cedar are OpenAI's recommended voices." if model_id not in LEGACY_MODELS
+                     else None),
         SettingField("response_format", "Audio format", "select", default="mp3",
                      options=[{"value": f, "label": f.upper()} for f in FORMATS]),
         SettingField("speed", "Speed", "number", minimum=0.25, maximum=4.0, default=1.0),
@@ -92,7 +118,8 @@ class OpenAISpeechAdapter(ProviderAdapter):
     def model_specs(self) -> list[ModelSpec]:
         return [
             ModelSpec(id=mid, label=mid, kind=GenerationKind.SPEECH, description=desc,
-                      params_model=SpeechParams, fields=_fields(mid), usage_metrics=["characters"])
+                      params_model=SpeechParams, fields=_fields(mid), usage_metrics=["characters"],
+                      deprecated=DEPRECATION_NOTE, shutdown_on=SHUTDOWN_ON)
             for mid, desc in MODELS.items()
         ]
 

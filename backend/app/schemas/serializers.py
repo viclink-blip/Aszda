@@ -106,12 +106,21 @@ def job_out(j: GenerationJob, *, admin_view: bool = False) -> dict[str, Any]:
 
 
 def credit_account_out(a: CreditAccount) -> dict[str, Any]:
-    return {"balance": a.balance, "updated_at": iso(a.updated_at)}
+    return {
+        "balance": a.balance,
+        # Plan credits expire at plan_credits_expire_at and do not roll over; purchased credits
+        # (packages, the sign-up grant, admin grants) never expire. Plan credits are spent first.
+        "plan_balance": a.plan_balance,
+        "plan_credits_expire_at": iso(a.plan_credits_expire_at) if a.plan_balance else None,
+        "purchased_balance": a.purchased_balance,
+        "updated_at": iso(a.updated_at),
+    }
 
 
 def credit_tx_out(t: CreditTransaction) -> dict[str, Any]:
     return {
         "id": str(t.id), "type": t.tx_type.value, "amount": t.amount, "balance_after": t.balance_after,
+        "plan_amount": t.plan_amount, "purchased_amount": t.purchased_amount,
         "generation_job_id": str(t.generation_job_id) if t.generation_job_id else None,
         "reason": t.reason, "created_at": iso(t.created_at),
     }

@@ -83,7 +83,7 @@ class FakeAsyncVideoAdapter(ProviderAdapter):
     supports_cancel = True
     credential_env = "FAKE_VIDEO_KEY"
     polls_until_done = 2
-    final: Literal["succeed", "fail"] = "succeed"
+    final: Literal["succeed", "fail", "safety"] = "succeed"
     poll_calls = 0
     cancelled: list[str] = []
     stay_pending = False
@@ -122,6 +122,12 @@ class FakeAsyncVideoAdapter(ProviderAdapter):
             return ProviderOutcome(status="pending", provider_job_id=ctx.provider_job_id, progress=50)
         if cls.final == "fail":
             raise ProviderError("The fake provider failed.", code="fake_failed")
+        if cls.final == "safety":
+            # Like Runway: blocked by the provider's safety system, billed to ASZDA anyway.
+            raise ProviderError("Declined by the safety system. Your credits were returned.",
+                                code="content_refused",
+                                absorbed_usage={"video_seconds": ctx.params["duration"]},
+                                provider_reported={"failureCode": "SAFETY.OUTPUT.VIDEO", "safety_block": True})
         return ProviderOutcome(
             status="completed", provider_job_id=ctx.provider_job_id,
             outputs=[ProviderOutput(kind=AssetKind.VIDEO, mime_type="video/mp4", display_name="Clip",

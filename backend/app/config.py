@@ -97,7 +97,10 @@ class BaseConfig:
 
     # Credits and usage limits (see docs/CREDITS.md)
     PRICING_FILE = os.environ.get("ASZDA_PRICING_FILE", "")
-    SIGNUP_CREDIT_GRANT = _int("ASZDA_SIGNUP_CREDIT_GRANT", 0)
+    # One-time free credits, given when a new account confirms its email address (never expire).
+    SIGNUP_CREDIT_GRANT = _int("ASZDA_SIGNUP_CREDIT_GRANT", 50)
+    # Abuse guard: at most this many sign-up grants per UTC day across all accounts (0 = no cap).
+    SIGNUP_GRANT_DAILY_CAP = _int("ASZDA_SIGNUP_GRANT_DAILY_CAP", 200)
     MAX_CREDITS_PER_JOB = _int("ASZDA_MAX_CREDITS_PER_JOB", 500)
     MAX_ACTIVE_JOBS_PER_USER = _int("ASZDA_MAX_ACTIVE_JOBS_PER_USER", 3)
     DAILY_JOB_LIMIT = _int("ASZDA_DAILY_JOB_LIMIT", 50)
@@ -167,6 +170,7 @@ class TestingConfig(BaseConfig):
     OPENAI_API_KEY = ""
     RUNWAY_API_KEY = ""
     PRICING_FILE = ""
+    SIGNUP_CREDIT_GRANT = 0  # tests that need it switch it on
     PROVIDER_POLL_INTERVAL_SECONDS = 0
     PAYSTACK_SECRET_KEY = ""
     PAYSTACK_USD_ENABLED = False

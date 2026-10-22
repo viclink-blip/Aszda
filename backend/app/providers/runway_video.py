@@ -239,10 +239,24 @@ class RunwayVideoAdapter(ProviderAdapter):
                                    result={"runway_task_id": ctx.provider_job_id,
                                            "runway_cost": task.get("cost")})
         if status == "FAILED":
-            # Runway reports a cost for failed tasks; we do not know whether it is
-            # non-zero, so the user is not charged for provider failures.
+            failure_code = str(task.get("failureCode") or "")
+            reported = {k: task[k] for k in ("failureCode", "cost") if task.get(k) is not None} or None
+            if failure_code.upper().startswith("SAFETY."):
+                # Blocked by Runway's content moderation. Runway's docs say moderated
+                # generations cost the same as successful ones (and SAFETY.INPUT.* credits are
+                # not refunded), so ASZDA records that cost as its own; the customer is refunded.
+                # Runway asks that the code's detail is not shown to users and the task is
+                # not retried, hence the generic message and the "content_refused" code.
+                raise ProviderError(
+                    "Runway's safety system declined this request, so no video was made. Your "
+                    "credits were returned. Please change the prompt or image before trying again.",
+                    code="content_refused", absorbed_usage=usage,
+                    provider_reported={**(reported or {}), "safety_block": True})
+            # Other failures: Runway's docs say their credits are refunded, so the user is
+            # not charged either.
             raise ProviderError(task.get("failure") or "Runway could not generate this video.",
-                                code=f"runway_{(task.get('failureCode') or 'failed').lower()}"[:64])
+                                code=f"runway_{(failure_code or 'failed').lower()}"[:64],
+                                provider_reported=reported)
         if status == "CANCELLED":
             raise ProviderError("The video generation was cancelled at Runway.", code="provider_cancelled")
         raise ProviderError(f"Unexpected Runway task status: {status!r}", code="unexpected_provider_response")
