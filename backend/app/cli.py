@@ -102,6 +102,31 @@ def register_cli(app: Flask) -> None:
                 key = "key set" if adapter.is_configured() else f"missing {adapter.credential_env}"
                 click.echo(f"{adapter.name}:{spec.id:<22} {status:<55} [{key}]")
 
+    @group.command("providers-test")
+    @click.argument("provider", required=False)
+    def providers_test(provider: str | None) -> None:
+        """Run the free connection test of each configured AI provider (or just PROVIDER) and save
+        the result, like Admin -> Providers -> Test connection. Nothing is generated."""
+        from app.providers import registry
+        from app.services import provider_health
+
+        adapters = [a for a in registry.all_adapters() if provider in (None, a.name)]
+        if not adapters:
+            raise click.ClickException(f"Unknown provider '{provider}'.")
+        for adapter in adapters:
+            missing = adapter.missing_settings()
+            if missing:
+                click.echo(f"{adapter.name:<10} NOT CONFIGURED  missing: {', '.join(missing)}")
+                continue
+            if adapter.connection_test_may_charge:
+                click.echo(f"{adapter.name:<10} SKIPPED  (this test may be charged; use Admin -> Providers)")
+                continue
+            last = provider_health.run_test(adapter.name, actor_id=None, confirm_charge=False)["last_test"]
+            if last["ok"]:
+                click.echo(f"{adapter.name:<10} OK      {last['result']}")
+            else:
+                click.echo(f"{adapter.name:<10} FAILED  {last['last_error']}")
+
     @group.command("paystack-check")
     @click.option("--try-usd", is_flag=True,
                   help="Ask Paystack to start (not charge) a $2.00 USD test transaction to see if USD is enabled.")

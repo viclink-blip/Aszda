@@ -163,6 +163,16 @@ Details:
 - Safety-filtered results (`rai_media_filtered_count`) fail as `content_refused` with a full refund. Google does not document charging for them, so no ASZDA cost is assumed.
 - Not implemented: cancelling a running operation, video extension, reference images, last-frame interpolation, 4k.
 
+## Checking providers from the command line (free)
+
+```bash
+flask --app wsgi aszda providers-test            # every provider; or: ... providers-test anthropic
+# with Docker:
+docker compose exec api flask --app wsgi aszda providers-test
+```
+
+This runs the same free connection tests as Admin -> Providers and stores the results.
+
 ## Manual live tests (after adding credentials)
 
 `backend/tests_live/` holds opt-in tests that call the real APIs. The normal test run skips them.
@@ -176,6 +186,8 @@ ASZDA_LIVE_TESTS=1 ASZDA_LIVE_PAID=1 .venv/bin/python -m pytest tests_live -q -s
 - **Paid tests are billed by the provider.** Run them one provider at a time with `-k anthropic`, `openai`, `runway` or `google`.
 - They use the smallest settings: a short Claude reply and a short Director plan, one low-quality image, one short voice clip, a 2-second Runway clip, and a 4-second Veo clip.
 - Outputs go to `backend/live-test-output/`, which is git-ignored.
+- **Inside Docker**, the production image has no pytest, so install it for the app user first:
+  `docker compose exec api sh -c "pip install --user -q pytest && ASZDA_LIVE_TESTS=1 python -m pytest tests_live -q -s -p no:cacheprovider -o cache_dir=/tmp"`.
 
 ## Adding or replacing a provider
 

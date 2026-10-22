@@ -628,3 +628,14 @@ def test_director_respects_ownership_and_credits(app, make_user, director_setup)
     response = poor.post(f"/api/projects/{poor_pid}/director/plan", headers=idem(),
                          json={"idea": "A fox who sells shoes at the market"})
     assert response.status_code == 402
+
+
+def test_providers_test_cli(app, cfg, monkeypatch):
+    cfg(RUNWAY_API_KEY="r")
+    monkeypatch.setattr(httpx, "request", lambda *a, **k: httpx.Response(200, json={"creditBalance": 7}))
+    runner = app.test_cli_runner()
+    with app.app_context():  # the real `flask` command provides this
+        out = runner.invoke(args=["aszda", "providers-test"]).output
+        assert "anthropic  NOT CONFIGURED  missing: ANTHROPIC_API_KEY" in out
+        assert "runway     OK" in out and "7" in out
+        assert runner.invoke(args=["aszda", "providers-test", "nobody"]).exit_code != 0
