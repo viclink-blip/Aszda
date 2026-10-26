@@ -33,6 +33,8 @@ from app.providers.base import (
     ProviderOutput,
     SettingField,
     classify_http_status,
+    out_of_credit,
+    provider_error_text,
 )
 
 BASE_URL = "https://api.dev.runwayml.com"
@@ -203,7 +205,13 @@ class RunwayVideoAdapter(ProviderAdapter):
                                 retryable=True) from exc
         if response.status_code >= 400:
             code, retryable = classify_http_status(response.status_code)
-            raise ProviderError(f"Runway returned an error ({response.status_code}).", code=code,
+            detail = provider_error_text(response)
+            # Runway's docs do not list a specific code for an empty credit balance; its own
+            # message mentioning credits is taken as that case.
+            if detail and "credit" in detail.lower() and response.status_code < 500:
+                raise out_of_credit("Runway")
+            suffix = f": {detail}" if detail else "."
+            raise ProviderError(f"Runway returned an error ({response.status_code}){suffix}", code=code,
                                 retryable=retryable)
         return response
 

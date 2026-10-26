@@ -31,6 +31,7 @@ from app.providers.base import (
     ProviderOutput,
     SettingField,
     classify_http_status,
+    out_of_credit,
 )
 
 ENDPOINT = "https://api.openai.com/v1/images/generations"
@@ -103,6 +104,8 @@ def submit(ctx: JobContext) -> ProviderOutcome:
             error_code = (response.json().get("error") or {}).get("code")
         except ValueError:
             pass
+        if response.status_code == 429 and error_code == "insufficient_quota":
+            raise out_of_credit("OpenAI")
         if error_code == "moderation_blocked":  # OpenAI's image moderation error code
             raise ProviderError("OpenAI's safety system declined this image request. Your credits were "
                                 "returned. Please change the description.", code="content_refused",

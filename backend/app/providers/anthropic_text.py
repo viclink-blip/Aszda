@@ -23,6 +23,7 @@ from app.providers.base import (
     ProviderOutcome,
     ProviderOutput,
     SettingField,
+    out_of_credit,
 )
 
 # Models that accept the server-side refusal fallback (`fallbacks: "default"`).
@@ -250,6 +251,11 @@ class AnthropicTextAdapter(ProviderAdapter):
             raise ProviderError("The Anthropic credential was rejected.",
                                 code="provider_auth_failed") from exc
         except anthropic.APIStatusError as exc:
+            error = (exc.body or {}).get("error", {}) if isinstance(exc.body, dict) else {}
+            message = str(error.get("message", "")) if isinstance(error, dict) else ""
+            if (isinstance(error, dict) and error.get("type") == "billing_error") \
+                    or "credit balance is too low" in message.lower():
+                raise out_of_credit("Anthropic") from exc
             raise ProviderError(f"Claude rejected the request ({exc.status_code}).",
                                 code="provider_rejected_request") from exc
 

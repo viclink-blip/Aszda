@@ -189,6 +189,30 @@ class ProviderAdapter(ABC):
         return False
 
 
+def out_of_credit(provider_label: str) -> ProviderError:
+    """The provider account itself has no credit or quota left (not a temporary rate limit).
+    Not retried: retrying cannot succeed until an administrator tops the account up."""
+    return ProviderError(
+        f"ASZDA's {provider_label} account has run out of credit, so this could not be made. "
+        "Your credits were returned. An administrator needs to top up the provider account.",
+        code="provider_out_of_credit")
+
+
+def provider_error_text(response) -> str:
+    """The provider's own short error message from a JSON error body, if any (for logs and
+    error messages; never contains our credentials)."""
+    try:
+        body = response.json()
+    except ValueError:
+        return ""
+    error = body.get("error") if isinstance(body, dict) else None
+    if isinstance(error, dict):
+        error = error.get("message")
+    if not isinstance(error, str):
+        error = body.get("message") if isinstance(body, dict) else None
+    return error[:300] if isinstance(error, str) else ""
+
+
 def classify_http_status(status: int) -> tuple[str, bool]:
     """Map an HTTP status from a provider to (error code, retryable)."""
     if status in (401, 403):

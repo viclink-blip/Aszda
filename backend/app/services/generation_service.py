@@ -515,6 +515,12 @@ def _fail(job: GenerationJob, exc: ProviderError) -> None:
     job.error_code = exc.code
     job.error_message = exc.message
     _settle(job, charged, success=False)
+    if exc.code == "provider_out_of_credit":
+        from app.services import provider_health
+
+        log.warning("Provider %s account is out of credit (job %s)", job.provider, job.id)
+        provider_health.note_error(job.provider, "Out of credit: a generation was refused because the "
+                                                 "provider account has no credit left. Top it up.")
     if exc.absorbed_usage:
         # The provider billed ASZDA, the customer is refunded: record it as ASZDA's cost.
         job.usage = {**job.usage, "provider_billed": exc.absorbed_usage}

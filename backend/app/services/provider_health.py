@@ -65,6 +65,14 @@ def describe_all() -> list[dict]:
     return [describe(a) for a in registry.all_adapters()]
 
 
+def note_error(name: str, message: str) -> None:
+    """Record a provider problem seen during real generation (e.g. the account ran out of
+    credit) so Admin -> Providers shows it. The caller commits."""
+    row = _status_row(name) or ProviderStatus(provider=name)
+    db.session.add(row)
+    row.last_error, row.last_error_at, row.last_test_ok = message[:500], datetime.now(UTC), False
+
+
 def run_test(name: str, *, actor_id, confirm_charge: bool) -> dict:
     adapter = registry.get_adapter(name)
     if adapter is None:

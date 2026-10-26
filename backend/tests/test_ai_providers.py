@@ -744,3 +744,90 @@ def test_long_conversations_drop_the_oldest_turns(app_ctx, make_user):
     assert len(history) <= generation_service.MAX_CONVERSATION_TURNS
     assert history[0]["role"] == "user" and history[-1] == {"role": "assistant", "content": "latest answer"}
     assert history[-2] == {"role": "user", "content": "latest question"}
+
+
+# ---- Provider account out of credit -------------------------------------------------------------
+
+def test_openai_out_of_credit_is_clear_and_not_retried(app, make_user, cfg, monkeypatch):
+    cfg(OPENAI_API_KEY="k")
+    add_prices({"openai:gpt-4o-mini-tts": pricing.ModelPrice(credits_per_1000={"characters": 8}, minimum_credits=2)})
+    calls = []
+
+    def empty_account(*a, **k):
+        calls.append(1)
+        return httpx.Response(429, json={"error": {"code": "insufficient_quota", "message": "You exceeded your quota"}})
+    monkeypatch.setattr(httpx, "post", empty_account)
+    user = make_user(credits=100)
+    job = user.post("/api/generation-jobs", headers=idem(), json={
+        "provider": "openai", "kind": "speech", "params": {"text": "Hello"}}).get_json()["job"]
+    job = user.get(f"/api/generation-jobs/{job['id']}").get_json()["job"]
+    assert job["status"] == "failed" and job["error"]["code"] == "provider_out_of_credit"
+    assert "run out of credit" in job["error"]["message"]
+    assert len(calls) == 1  # not retried
+    assert user.get("/api/me/credits").get_json()["account"]["balance"] == 100
+    admin = make_user(admin=True)
+    health = {p["name"]: p for p in admin.get("/api/admin/providers/health").get_json()["providers"]}
+    assert "Out of credit" in health["openai"]["last_test"]["last_error"]
+
+
+def test_openai_rate_limit_is_still_temporary(app_ctx, cfg, monkeypatch):
+    cfg(OPENAI_API_KEY="k")
+    limited = {"error": {"code": "rate_limit_exceeded"}}
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(429, json=limited))
+    with pytest.raises(ProviderError) as err:
+        OpenAIAdapter().submit(ctx("gpt-4o-mini-tts", {"text": "Hi", "voice": "marin", "response_format": "mp3",
+                                                      "speed": 1.0}))
+    assert err.value.code == "provider_rate_limited" and err.value.retryable
+
+
+def test_openai_image_out_of_credit(app_ctx, cfg, monkeypatch):
+    cfg(OPENAI_API_KEY="k")
+    monkeypatch.setattr(httpx, "post", _image_response(429, {"error": {"code": "insufficient_quota"}}))
+    with pytest.raises(ProviderError) as err:
+        OpenAIAdapter().submit(ctx("gpt-image-2", {"prompt": "x", "size": "1024x1024", "quality": "low",
+                                                    "output_format": "png", "background": "auto"}))
+    assert err.value.code == "provider_out_of_credit" and not err.value.retryable
+
+
+def test_anthropic_billing_error_is_out_of_credit(app_ctx, cfg, monkeypatch):
+    import anthropic
+
+    cfg(ANTHROPIC_API_KEY="k")
+    request = httpx2_request()
+
+    def broke(**kwargs):
+        body = {"type": "error", "error": {"type": "billing_error", "message": "Your credit balance is too low"}}
+        raise anthropic.APIStatusError("billing", response=httpx2_response(402, request, body), body=body)
+    client = pytypes.SimpleNamespace(beta=pytypes.SimpleNamespace(messages=pytypes.SimpleNamespace(create=broke)))
+    monkeypatch.setattr(AnthropicTextAdapter, "_client", lambda self: client)
+    adapter = AnthropicTextAdapter()
+    params = adapter.validate(adapter.get_model("claude-opus-5-5"), {"task": "freeform", "prompt": "hi"})
+    with pytest.raises(ProviderError) as err:
+        adapter.submit(ctx("claude-opus-5-5", params))
+    assert err.value.code == "provider_out_of_credit"
+
+
+def test_runway_error_message_is_shown_and_credit_problem_detected(app_ctx, cfg, monkeypatch):
+    cfg(RUNWAY_API_KEY="r")
+    adapter = RunwayVideoAdapter()
+    params = {"mode": "text_to_video", "prompt_text": "x", "ratio": "1280:720", "duration": 5}
+    monkeypatch.setattr(httpx, "request", lambda *a, **k: httpx.Response(400, json={"error": "Not enough credits"}))
+    with pytest.raises(ProviderError) as err:
+        adapter.submit(ctx("gen4.5", params))
+    assert err.value.code == "provider_out_of_credit"
+    monkeypatch.setattr(httpx, "request", lambda *a, **k: httpx.Response(400, json={"error": "Invalid ratio"}))
+    with pytest.raises(ProviderError) as err:
+        adapter.submit(ctx("gen4.5", params))
+    assert err.value.code == "provider_rejected_request" and "Invalid ratio" in err.value.message
+
+
+def httpx2_request():
+    import httpx2
+
+    return httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+
+
+def httpx2_response(status, request, body):
+    import httpx2
+
+    return httpx2.Response(status, json=body, request=request)

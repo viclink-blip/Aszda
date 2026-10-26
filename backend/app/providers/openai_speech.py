@@ -34,6 +34,7 @@ from app.providers.base import (
     ProviderOutput,
     SettingField,
     classify_http_status,
+    out_of_credit,
 )
 
 ENDPOINT = "https://api.openai.com/v1/audio/speech"
@@ -107,6 +108,18 @@ def _fields(model_id: str) -> list[SettingField]:
                  "style instructions.",
         ))
     return fields
+
+
+def is_openai_out_of_credit(response: httpx.Response) -> bool:
+    """OpenAI answers 429 with the error code "insufficient_quota" when the account has no
+    credit left (as opposed to a temporary rate limit)."""
+    if response.status_code != 429:
+        return False
+    try:
+        error = response.json().get("error") or {}
+    except ValueError:
+        return False
+    return isinstance(error, dict) and error.get("code") == "insufficient_quota"
 
 
 class OpenAIAdapter(ProviderAdapter):
@@ -194,6 +207,8 @@ class OpenAIAdapter(ProviderAdapter):
             raise ProviderError("OpenAI could not be reached.", code="provider_unavailable",
                                 retryable=True) from exc
         if response.status_code != 200:
+            if is_openai_out_of_credit(response):
+                raise out_of_credit("OpenAI")
             code, retryable = classify_http_status(response.status_code)
             raise ProviderError(f"OpenAI returned an error ({response.status_code}).", code=code,
                                 retryable=retryable)
