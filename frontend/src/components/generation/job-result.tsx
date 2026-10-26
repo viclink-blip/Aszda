@@ -1,6 +1,7 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { Clapperboard, Download } from "lucide-react";
+import { ButtonLink } from "@/components/ui/button";
 import { AssetMedia } from "@/components/assets/asset-media";
 import { useAssetUrl } from "@/components/assets/use-asset-url";
 import { Notice } from "@/components/ui/notice";
@@ -57,6 +58,14 @@ export function JobResult({ job }: { job: Job }) {
         <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-line bg-surface p-4">
           <SafeMarkdown text={result.text} />
         </div>
+        {job.params.task !== "director_plan" && (
+          <div>
+            <ButtonLink size="sm" variant="secondary"
+              href={`/app/director?from_job=${job.id}${job.project_id ? `&project=${job.project_id}` : ""}`}>
+              <Clapperboard className="h-4 w-4" aria-hidden /> Send to AI Film Director
+            </ButtonLink>
+          </div>
+        )}
       </div>
     );
   }

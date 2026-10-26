@@ -3,7 +3,7 @@
 import { Clapperboard, Image as ImageIcon, Film, AudioLines } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCredits } from "@/components/app/credits-context";
 import { JobResult } from "@/components/generation/job-result";
 import { ProjectSelect } from "@/components/generation/project-select";
@@ -23,6 +23,8 @@ import { useJobPolling } from "@/hooks/use-job-polling";
 import { api, errorMessage, newIdempotencyKey } from "@/lib/api";
 import { providerLabel } from "@/lib/format";
 import type { CapabilityRoute, Scene, SceneGenerationResult } from "@/lib/types";
+
+const IDEA_MAX = 10000;
 
 type SceneKind = "image" | "video" | "voice";
 const KIND_INFO: Record<SceneKind, { label: string; icon: typeof ImageIcon; route: CapabilityRoute["kind"] }> = {
@@ -138,8 +140,24 @@ function ScenesCard({ projectId, routing, version }: { projectId: string; routin
 export function DirectorView() {
   const toast = useToast();
   const { refresh } = useCredits();
-  const [projectId, setProjectId] = useState<string | null>(useSearchParams().get("project"));
+  const params = useSearchParams();
+  const [projectId, setProjectId] = useState<string | null>(params.get("project"));
   const [idea, setIdea] = useState("");
+  const fromJob = params.get("from_job");
+  const [loadedFrom, setLoadedFrom] = useState<{ cut: boolean } | null>(null);
+  // "Send to AI Film Director" from a Script Studio answer: start from that text.
+  useEffect(() => {
+    if (!fromJob) return;
+    let cancelled = false;
+    api.generation.get(fromJob).then(({ job: source }) => {
+      const text = typeof source.result?.text === "string" ? source.result.text : "";
+      if (cancelled || !text) return;
+      setIdea((current) => current || text.slice(0, IDEA_MAX));
+      setLoadedFrom({ cut: text.length > IDEA_MAX });
+      if (source.project_id) setProjectId((current) => current ?? source.project_id);
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [fromJob]);
   const [effort, setEffort] = useState<"low" | "medium" | "high">("medium");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -197,7 +215,13 @@ export function DirectorView() {
           <CardHeader title="1. Plan the film" />
           <CardBody>
             <form onSubmit={plan} className="flex flex-col gap-4">
-              <ProjectSelect value={projectId} onChange={setProjectId} required help="The plan, scenes and generated files are saved to this project." />
+              <ProjectSelect value={projectId} onChange={setProjectId} required allowCreate help="The plan, scenes and generated files are saved to this project." />
+              {loadedFrom && (
+                <Notice tone="info">
+                  Your script was copied into &ldquo;Your idea&rdquo;. You can edit it before creating the plan.
+                  {loadedFrom.cut && ` It was longer than ${IDEA_MAX.toLocaleString()} characters, so only the beginning was kept.`}
+                </Notice>
+              )}
               <Field label="Your idea" required help="Story, audience, tone, length and anything that must appear.">
                 {(p) => <Textarea {...p} rows={5} value={idea} minLength={10} maxLength={10000} required onChange={(e) => setIdea(e.target.value)} />}
               </Field>

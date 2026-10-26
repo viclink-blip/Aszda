@@ -9,9 +9,15 @@ import { Input, Textarea } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
 import { focusFirstError, splitErrors } from "@/lib/forms";
+import type { Project } from "@/lib/types";
 
-/** "New project" dialog. Opens the new project's workspace when created. */
-export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+/** "New project" dialog. Opens the new project's workspace when created, unless `onCreated`
+ * is given (then the caller decides, e.g. to select it in a form). */
+export function CreateProjectDialog({ open, onOpenChange, onCreated }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated?: (project: Project) => void;
+}) {
   const router = useRouter();
   const toast = useToast();
   const formRef = useRef<HTMLFormElement>(null);
@@ -45,7 +51,8 @@ export function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onO
       const { project } = await api.projects.create({ title: title.trim(), description: description.trim() });
       toast.success("Project created", project.title);
       close(false);
-      router.push(`/app/projects/${project.id}`);
+      if (onCreated) onCreated(project);
+      else router.push(`/app/projects/${project.id}`);
     } catch (error) {
       const split = splitErrors(error, ["title", "description"]);
       setErrors(split.fieldErrors);
