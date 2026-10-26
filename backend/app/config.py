@@ -9,6 +9,21 @@ from __future__ import annotations
 import os
 from datetime import timedelta
 
+# Prefixes of the variables ASZDA reads. A value that starts with "#" is a comment that ended up
+# in the value (Docker Compose does not strip a comment written after an empty value, e.g.
+# `PAYSTACK_SECRET_KEY=   # sk_test_...`), so it is treated as not set.
+_OWN_PREFIXES = ("ASZDA_", "PAYSTACK_", "ANTHROPIC_", "OPENAI_", "RUNWAYML_", "GEMINI_", "GOOGLE_",
+                 "DATABASE_URL", "TEST_DATABASE_URL", "REDIS_URL", "CELERY_")
+
+
+def _drop_comment_values() -> None:
+    for name, value in list(os.environ.items()):
+        if name.startswith(_OWN_PREFIXES) and value.strip().startswith("#"):
+            os.environ[name] = ""
+
+
+_drop_comment_values()
+
 
 def _bool(name: str, default: bool) -> bool:
     value = os.environ.get(name)

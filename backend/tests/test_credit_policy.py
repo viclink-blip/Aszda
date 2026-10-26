@@ -207,7 +207,11 @@ def test_package_purchase_is_lasting_and_subscription_is_expiring(app, client, m
     account = user.get("/api/billing/overview").get_json()["credits"]
     assert account["purchased_balance"] == 200 and account["plan_balance"] == 300
     expires = datetime.fromisoformat(account["plan_credits_expire_at"])
-    assert timedelta(days=27) < expires - datetime.now(UTC) < timedelta(days=32)
+    with app.app_context():
+        from app.models import Payment
+        paid_at = db.session.query(Payment).filter_by(reference=reference).one().paid_at
+    # The plan credits last exactly one billing period from the payment.
+    assert expires == paid_at.replace(month=paid_at.month % 12 + 1, year=paid_at.year + (paid_at.month == 12))
     expire_now(app, user)
     assert parts(app, user) == (0, 200, 200)
 

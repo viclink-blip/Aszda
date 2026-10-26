@@ -25,6 +25,7 @@ Prices live in a JSON file pointed to by ASZDA_PRICING_FILE. Format:
 from __future__ import annotations
 
 import json
+import logging
 import math
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -51,6 +52,20 @@ class ModelPrice:
 
 class PricingError(ValueError):
     pass
+
+
+log = logging.getLogger(__name__)
+
+
+def _file_prices() -> dict[str, ModelPrice]:
+    """Prices from ASZDA_PRICING_FILE. A missing or broken file is logged and treated as empty
+    (admin prices still apply) instead of breaking every page that lists models."""
+    path = current_app.config.get("PRICING_FILE", "")
+    try:
+        return _load(path)
+    except (OSError, ValueError) as exc:
+        log.error("Pricing file %r could not be read (%s); only admin prices are used.", path, exc)
+        return {}
 
 
 @lru_cache(maxsize=8)
@@ -94,7 +109,7 @@ def price_source(provider: str, model: str) -> str | None:
     row = _admin_row(provider, model)
     if row is not None:
         return "admin" if row.enabled else None
-    return "file" if f"{provider}:{model}" in _load(current_app.config.get("PRICING_FILE", "")) else None
+    return "file" if f"{provider}:{model}" in _file_prices() else None
 
 
 def _admin_row(provider: str, model: str):
@@ -115,4 +130,4 @@ def price_for(provider: str, model: str) -> ModelPrice | None:
     row = _admin_row(provider, model)
     if row is not None:
         return price_from_row(row) if row.enabled else None
-    return _load(current_app.config.get("PRICING_FILE", "")).get(f"{provider}:{model}")
+    return _file_prices().get(f"{provider}:{model}")

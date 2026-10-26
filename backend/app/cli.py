@@ -94,7 +94,12 @@ def register_cli(app: Flask) -> None:
         from app.providers import registry
         from app.services import pricing
 
-        click.echo(f"Pricing file: {current_app.config['PRICING_FILE'] or '(none — nothing is priced)'}")
+        click.echo(f"Pricing file: {current_app.config['PRICING_FILE'] or '(none)'}")
+        if current_app.config["PRICING_FILE"]:
+            try:
+                pricing._load(current_app.config["PRICING_FILE"])
+            except (OSError, ValueError) as exc:
+                click.echo(f"  WARNING: the pricing file cannot be used ({exc}); only Admin -> Pricing applies.")
         for adapter in registry.all_adapters():
             for spec in adapter.model_specs():
                 price = pricing.price_for(adapter.name, spec.id)

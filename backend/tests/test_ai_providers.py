@@ -639,3 +639,28 @@ def test_providers_test_cli(app, cfg, monkeypatch):
         assert "anthropic  NOT CONFIGURED  missing: ANTHROPIC_API_KEY" in out
         assert "runway     OK" in out and "7" in out
         assert runner.invoke(args=["aszda", "providers-test", "nobody"]).exit_code != 0
+
+
+def test_comment_written_as_env_value_is_ignored(monkeypatch):
+    """Docker Compose reads `KEY=   # note` as the value "# note"; ASZDA treats it as unset."""
+    from app import config
+
+    monkeypatch.setenv("ASZDA_PRICING_FILE", "# e.g. ./pricing.json")
+    monkeypatch.setenv("PAYSTACK_SECRET_KEY", "  # sk_test_... first")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-real#value")  # a '#' inside a value is kept
+    monkeypatch.setenv("UNRELATED_VAR", "# not ours")
+    config._drop_comment_values()
+    import os
+    assert os.environ["ASZDA_PRICING_FILE"] == "" and os.environ["PAYSTACK_SECRET_KEY"] == ""
+    assert os.environ["ANTHROPIC_API_KEY"] == "sk-ant-real#value"
+    assert os.environ["UNRELATED_VAR"] == "# not ours"
+
+
+def test_missing_pricing_file_does_not_break_model_listing(app, make_user, cfg):
+    pricing.set_override(None)
+    cfg(PRICING_FILE="/nonexistent/pricing.json")
+    user = make_user()
+    response = user.get("/api/providers")
+    assert response.status_code == 200
+    admin = make_user(admin=True)
+    assert admin.get("/api/admin/providers/health").status_code == 200
