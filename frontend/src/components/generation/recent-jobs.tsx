@@ -4,11 +4,17 @@ import Link from "next/link";
 import { LoadingRows } from "@/components/ui/skeleton";
 import { useApi } from "@/hooks/use-api";
 import { api } from "@/lib/api";
-import type { GenerationKind } from "@/lib/types";
+import type { GenerationKind, Job } from "@/lib/types";
 import { JobItem } from "./job-item";
 
 /** The last few jobs of one kind. Change `refreshKey` to reload. */
-export function RecentJobs({ kind, refreshKey, excludeId }: { kind: GenerationKind; refreshKey: number; excludeId?: string }) {
+export function RecentJobs({ kind, refreshKey, excludeId, onContinued }: {
+  kind: GenerationKind;
+  refreshKey: number;
+  excludeId?: string;
+  /** A reply started under one of these answers (shown in the studio's output panel). */
+  onContinued?: (job: Job) => void;
+}) {
   const { data, loading, reload } = useApi(() => api.generation.list({ kind, limit: 5 }), [kind, refreshKey]);
   const jobs = (data?.items ?? []).filter((j) => j.id !== excludeId);
 
@@ -26,7 +32,7 @@ export function RecentJobs({ kind, refreshKey, excludeId }: { kind: GenerationKi
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {jobs.map((job) => <JobItem key={job.id} job={job} onRetried={() => void reload()} />)}
+          {jobs.map((job) => <JobItem key={job.id} job={job} onRetried={() => void reload()} onContinued={onContinued} />)}
         </ul>
       )}
     </section>

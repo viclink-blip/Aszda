@@ -57,7 +57,7 @@ export function StudioView({ kind, title, description, notes, submitLabel, empty
         </div>
         <div className="lg:sticky lg:top-24 lg:self-start">
           <OutputPanel job={job} onRetried={started} emptyText={emptyText} />
-          <RecentJobs kind={kind} refreshKey={refreshKey} excludeId={job?.id} />
+          <RecentJobs kind={kind} refreshKey={refreshKey} excludeId={job?.id} onContinued={started} />
         </div>
       </div>
     </>

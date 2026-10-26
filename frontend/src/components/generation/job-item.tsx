@@ -40,7 +40,8 @@ export function JobItem({ job: initial, onRetried, onContinued, showProject = tr
   job: Job;
   /** Called with the new job created by "Retry". */
   onRetried?: (job: Job) => void;
-  /** When set, a finished text answer can be replied to; called with the new job. */
+  /** Called with the reply job started from "Continue the conversation". Without it, the reply
+   * is shown right below this answer. */
   onContinued?: (job: Job) => void;
   showProject?: boolean;
   defaultOpen?: boolean;
@@ -49,6 +50,7 @@ export function JobItem({ job: initial, onRetried, onContinued, showProject = tr
   const toast = useToast();
   const [open, setOpen] = useState(defaultOpen);
   const [busy, setBusy] = useState<"cancel" | "retry" | null>(null);
+  const [replies, setReplies] = useState<Job[]>([]);
   // Reused if a retry fails because of the network, so the server can de-duplicate it.
   const retryKey = useRef<string | null>(null);
   if (!job) return null;
@@ -144,10 +146,15 @@ export function JobItem({ job: initial, onRetried, onContinued, showProject = tr
       {open && job.status === "completed" && (
         <div className="border-t border-line p-4">
           <JobResult job={job} />
-          {onContinued && job.kind === "text" && job.params.task !== "director_plan" && (
-            <ContinueConversation job={job} onStarted={onContinued} />
+          {job.kind === "text" && job.params.task !== "director_plan" && (
+            <ContinueConversation job={job} onStarted={(reply) => (onContinued ? onContinued(reply) : setReplies((r) => [...r, reply]))} />
           )}
         </div>
+      )}
+      {replies.length > 0 && (
+        <ul className="flex flex-col gap-2 border-t border-line p-3">
+          {replies.map((reply) => <JobItem key={reply.id} job={reply} defaultOpen showProject={false} />)}
+        </ul>
       )}
     </li>
   );
