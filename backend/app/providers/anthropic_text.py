@@ -7,11 +7,12 @@ Usage metrics: input_tokens, output_tokens (as reported by the API).
 from __future__ import annotations
 
 import json
+import uuid
 from typing import Any, Literal
 
 import anthropic
 from flask import current_app
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models import AssetKind, GenerationKind
 from app.providers.base import (
@@ -124,6 +125,13 @@ def plan_markdown(plan: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+class Turn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=100_000)
+
+
 class TextParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -132,6 +140,16 @@ class TextParams(BaseModel):
     prompt: str = Field(min_length=1, max_length=12000)
     max_output_tokens: int = Field(default=4000, ge=500, le=16000)
     effort: Literal["low", "medium", "high"] = "medium"
+    # Continuing a conversation: the earlier answer this message follows up on. The server
+    # (never the browser) fills `history` with the earlier turns from the user's own jobs.
+    continue_from_job_id: uuid.UUID | None = None
+    history: list[Turn] | None = Field(default=None, max_length=40)
+
+    @model_validator(mode="after")
+    def no_plan_follow_ups(self):
+        if self.task == "director_plan" and (self.history or self.continue_from_job_id):
+            raise ValueError("A film plan cannot be continued; create a new plan instead.")
+        return self
 
 
 FIELDS = [
@@ -193,7 +211,8 @@ class AnthropicTextAdapter(ProviderAdapter):
     def estimate_usage(self, model: ModelSpec, params: dict[str, Any]) -> dict[str, float]:
         system = TASKS[params["task"]][1]
         # Roughly 4 characters per token; dividing by 2 gives a safe upper bound.
-        input_tokens = (len(system) + len(params["prompt"])) // 2 + 100
+        earlier = sum(len(turn["content"]) for turn in params.get("history") or [])
+        input_tokens = (len(system) + len(params["prompt"]) + earlier) // 2 + 100
         # max_tokens caps all output, including thinking, so it is a hard upper bound.
         return {"input_tokens": input_tokens, "output_tokens": params["max_output_tokens"]}
 
@@ -211,7 +230,9 @@ class AnthropicTextAdapter(ProviderAdapter):
             "model": ctx.model,
             "max_tokens": params["max_output_tokens"],
             "system": system,
-            "messages": [{"role": "user", "content": params["prompt"]}],
+            # Earlier turns of the conversation (if any), then the new message.
+            "messages": [{"role": t["role"], "content": t["content"]} for t in params.get("history") or []]
+            + [{"role": "user", "content": params["prompt"]}],
             "output_config": output_config,
         }
         if ctx.model in _FALLBACK_MODELS:

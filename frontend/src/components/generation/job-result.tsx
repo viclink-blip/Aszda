@@ -32,8 +32,25 @@ export function JobResult({ job }: { job: Job }) {
 
   // Text jobs carry the text inline, so it can be shown without fetching the file.
   if (typeof result.text === "string") {
+    const history = (job.params.history ?? []) as { role: "user" | "assistant"; content: string }[];
     return (
       <div className="flex flex-col gap-3">
+        {history.length > 0 && (
+          <details className="rounded-lg border border-line bg-surface-2 p-3 text-sm">
+            <summary className="cursor-pointer text-muted">Earlier in this conversation ({history.length / 2} {history.length === 2 ? "reply" : "replies"})</summary>
+            <div className="mt-3 flex max-h-[40vh] flex-col gap-3 overflow-y-auto">
+              {history.map((turn, i) => (
+                <div key={i} className={turn.role === "user" ? "rounded-md bg-surface p-2 text-fg" : "text-muted"}>
+                  <p className="mb-1 text-xs font-medium text-subtle">{turn.role === "user" ? "You" : "Claude"}</p>
+                  {turn.role === "user" ? <p className="whitespace-pre-wrap">{turn.content}</p> : <SafeMarkdown text={turn.content} />}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+        {history.length > 0 && typeof job.params.prompt === "string" && (
+          <p className="rounded-md bg-surface-2 p-2 text-sm whitespace-pre-wrap text-fg"><span className="mb-1 block text-xs font-medium text-subtle">You</span>{job.params.prompt}</p>
+        )}
         {result.truncated && (
           <Notice tone="warning">The text reached the maximum length you set and was cut off. Increase the maximum length and generate again for a complete result.</Notice>
         )}

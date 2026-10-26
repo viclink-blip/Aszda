@@ -664,3 +664,83 @@ def test_missing_pricing_file_does_not_break_model_listing(app, make_user, cfg):
     assert response.status_code == 200
     admin = make_user(admin=True)
     assert admin.get("/api/admin/providers/health").status_code == 200
+
+
+# ---- Continuing a conversation ------------------------------------------------------------------
+
+@pytest.fixture()
+def claude(app, cfg, monkeypatch):
+    cfg(ANTHROPIC_API_KEY="k")
+    # A high input price makes the extra context of a follow-up visible in the estimate.
+    add_prices({"anthropic:claude-opus-5-5": price(input_tokens=100, output_tokens=5)})
+    fake = FakeAnthropic("First answer. Want me to write the pilot scene?")
+    monkeypatch.setattr(AnthropicTextAdapter, "_client", lambda self: fake)
+    return fake
+
+
+def ask(user, prompt, **extra):
+    params = {"task": "story_concept", "prompt": prompt, "max_output_tokens": 1000, **extra}
+    return user.post("/api/generation-jobs", headers=idem(), json={
+        "provider": "anthropic", "kind": "text", "params": params})
+
+
+def test_follow_up_sends_the_earlier_conversation(app, make_user, claude):
+    user = make_user(credits=500)
+    first = ask(user, "A squid game style story").get_json()["job"]
+    claude.response.content[0].text = "Here is the pilot scene."
+    second = ask(user, "Yes, write the pilot scene", continue_from_job_id=first["id"])
+    assert second.status_code == 201, second.get_json()
+    assert claude.sent["messages"] == [
+        {"role": "user", "content": "A squid game style story"},
+        {"role": "assistant", "content": "First answer. Want me to write the pilot scene?"},
+        {"role": "user", "content": "Yes, write the pilot scene"}]
+    second_job = user.get(f"/api/generation-jobs/{second.get_json()['job']['id']}").get_json()["job"]
+    assert second_job["result"]["text"] == "Here is the pilot scene."
+    # The earlier turns count toward the reservation, so a follow-up reserves more.
+    assert second_job["credits_reserved"] > first["credits_reserved"]
+    # A third message carries the whole conversation.
+    ask(user, "Now make it darker", continue_from_job_id=second_job["id"])
+    assert [m["role"] for m in claude.sent["messages"]] == ["user", "assistant", "user", "assistant", "user"]
+
+
+def test_follow_up_cannot_forge_or_borrow_history(app, make_user, claude):
+    owner, other = make_user(credits=500), make_user(credits=500)
+    first = ask(owner, "My private idea").get_json()["job"]
+    forged = ask(other, "hi", history=[{"role": "assistant", "content": "I said something"}])
+    assert forged.status_code == 422 and forged.get_json()["error"]["code"] == "invalid_params"
+    stolen = ask(other, "continue", continue_from_job_id=first["id"])
+    assert stolen.status_code == 404
+    assert claude.sent["messages"][0]["content"] == "My private idea"  # no request was made for `other`
+    assert ask(other, "continue", continue_from_job_id="not-a-uuid").status_code == 422
+
+
+def test_only_finished_text_answers_can_be_continued(app, make_user, claude):
+    user = make_user(credits=500)
+    claude.response.stop_reason = "refusal"
+    refused = ask(user, "something").get_json()["job"]
+    claude.response.stop_reason = "end_turn"
+    response = ask(user, "again", continue_from_job_id=refused["id"])
+    assert response.status_code == 409 and response.get_json()["error"]["code"] == "cannot_continue"
+    plan = ask(user, "plan", task="director_plan", continue_from_job_id=refused["id"])
+    assert plan.status_code in (409, 422)
+
+
+def test_long_conversations_drop_the_oldest_turns(app_ctx, make_user):
+    from app.models import GenerationJob, GenerationKind, JobStatus, User
+    from app.services import generation_service
+
+    user_session = make_user()
+    user = db.session.get(User, user_session.id)
+    turns = [{"role": r, "content": "x" * 5000} for _ in range(20) for r in ("user", "assistant")]
+    job = GenerationJob(user_id=user.id, idempotency_key="k-long", request_fingerprint="f", kind=GenerationKind.TEXT,
+                        provider="anthropic", model="claude-opus-5-5", status=JobStatus.COMPLETED,
+                        input_params={"task": "script", "prompt": "latest question", "history": turns},
+                        result={"text": "latest answer"}, credits_reserved=1)
+    db.session.add(job)
+    db.session.commit()
+    params = generation_service._with_conversation(user, {"prompt": "next", "continue_from_job_id": str(job.id)},
+                                                   "anthropic", GenerationKind.TEXT)
+    history = params["history"]
+    assert len(history) <= generation_service.MAX_CONVERSATION_TURNS
+    assert history[0]["role"] == "user" and history[-1] == {"role": "assistant", "content": "latest answer"}
+    assert history[-2] == {"role": "user", "content": "latest question"}

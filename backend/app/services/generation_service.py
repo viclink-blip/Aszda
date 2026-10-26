@@ -84,6 +84,42 @@ def _resolve_adapter(provider: str | None, model: str | None, kind: GenerationKi
     return chosen.adapter, chosen.spec, chosen
 
 
+MAX_CONVERSATION_TURNS = 40          # 20 exchanges
+MAX_CONVERSATION_CHARS = 150_000
+
+
+def _with_conversation(user: User, params: dict[str, Any], provider: str, kind: GenerationKind) -> dict[str, Any]:
+    """Follow-up messages: rebuild the earlier conversation from the user's own completed job.
+
+    The browser only names the job it continues (`continue_from_job_id`); it can never send
+    the history itself, so nobody can put words in the model's mouth or read another user's
+    conversation. The oldest exchanges are dropped when the conversation gets long."""
+    if "history" in params:
+        raise APIError("The conversation history is filled in by the server.", code="invalid_params",
+                       status_code=422)
+    raw = params.get("continue_from_job_id")
+    if not raw:
+        return params
+    try:
+        previous = db.session.get(GenerationJob, uuid.UUID(str(raw)))
+    except ValueError as exc:
+        raise APIError("Invalid conversation reference.", code="invalid_params", status_code=422) from exc
+    if previous is None or previous.user_id != user.id:
+        raise NotFound("The answer you are replying to was not found.")
+    text = (previous.result or {}).get("text")
+    if (kind != GenerationKind.TEXT or previous.kind != GenerationKind.TEXT or previous.provider != provider
+            or previous.status != JobStatus.COMPLETED or not text
+            or (previous.input_params or {}).get("task") == "director_plan"):
+        raise Conflict("Only a finished text answer from the same provider can be continued.",
+                       code="cannot_continue")
+    history = list(previous.input_params.get("history") or []) + [
+        {"role": "user", "content": previous.input_params["prompt"]},
+        {"role": "assistant", "content": text[:100_000]}]
+    while len(history) > MAX_CONVERSATION_TURNS or sum(len(t["content"]) for t in history) > MAX_CONVERSATION_CHARS:
+        history = history[2:]  # drop the oldest question and answer together
+    return {**params, "history": history}
+
+
 def _check_referenced_assets(user: User, params: dict[str, Any], project_id: uuid.UUID | None) -> None:
     for key, value in params.items():
         if key.endswith("asset_id") and value:
@@ -142,6 +178,7 @@ def quote(user: User, *, provider: str | None, model: str | None, kind: Generati
           params: dict[str, Any]) -> dict[str, Any]:
     """Validate a request and return its credit estimate without creating a job."""
     adapter, spec, chosen = _resolve_adapter(provider, model, kind)
+    params = _with_conversation(user, params, adapter.name, kind)
     clean = adapter.validate(spec, params)
     usage = adapter.estimate_usage(spec, clean)
     price = pricing.price_for(adapter.name, spec.id)
@@ -187,6 +224,8 @@ def create_job(user: User, *, idempotency_key: str, provider: str | None, model:
             raise NotFound("Scene not found in this project.")
 
     adapter, spec, chosen = _resolve_adapter(provider, model, kind)
+    if retry_of is None:  # a retry re-uses the conversation its original job already had
+        params = _with_conversation(user, params, adapter.name, kind)
     clean = adapter.validate(spec, params)
     _check_referenced_assets(user, clean, project_id)
     provider, model = adapter.name, spec.id

@@ -15,8 +15,8 @@ export default function ScriptStudioPage() {
         description="Develop a story concept, draft a script, outline characters or break your story into scenes — written by Anthropic Claude."
         notes={
           <Notice tone="info">
-            The result is text you can copy into your storyboard. Turning it into scenes automatically is part of the
-            planned AI Film Director.
+            Reply under any answer to continue the conversation with Claude. To turn a story into storyboard scenes
+            automatically, use the AI Film Director.
           </Notice>
         }
         submitLabel="Write it"

@@ -12,6 +12,7 @@ import { api, ApiError, errorMessage, newIdempotencyKey } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { formatNumber, formatRelative, KIND_LABELS, providerLabel } from "@/lib/format";
 import { isJobActive, type GenerationKind, type Job } from "@/lib/types";
+import { ContinueConversation } from "./continue-conversation";
 import { JobResult } from "./job-result";
 
 const KIND_ICONS: Record<GenerationKind, typeof Film> = {
@@ -35,10 +36,12 @@ function creditsText(job: Job): string {
  * One generation job with live status. Active jobs refresh themselves every few
  * seconds. Offers cancel (while running), retry (after failure) and the result.
  */
-export function JobItem({ job: initial, onRetried, showProject = true, defaultOpen = false }: {
+export function JobItem({ job: initial, onRetried, onContinued, showProject = true, defaultOpen = false }: {
   job: Job;
   /** Called with the new job created by "Retry". */
   onRetried?: (job: Job) => void;
+  /** When set, a finished text answer can be replied to; called with the new job. */
+  onContinued?: (job: Job) => void;
   showProject?: boolean;
   defaultOpen?: boolean;
 }) {
@@ -141,6 +144,9 @@ export function JobItem({ job: initial, onRetried, showProject = true, defaultOp
       {open && job.status === "completed" && (
         <div className="border-t border-line p-4">
           <JobResult job={job} />
+          {onContinued && job.kind === "text" && job.params.task !== "director_plan" && (
+            <ContinueConversation job={job} onStarted={onContinued} />
+          )}
         </div>
       )}
     </li>

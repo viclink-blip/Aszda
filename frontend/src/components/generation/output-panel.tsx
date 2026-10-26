@@ -13,7 +13,7 @@ export function OutputPanel({ job, onRetried, emptyText }: { job: Job | null; on
       {job ? (
         <>
           <ul aria-live="polite">
-            <JobItem key={job.id} job={job} defaultOpen onRetried={onRetried} />
+            <JobItem key={job.id} job={job} defaultOpen onRetried={onRetried} onContinued={onRetried} />
           </ul>
           {job.project_id && (
             <Link href={`/app/projects/${job.project_id}?tab=generations`} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-accent hover:underline">
