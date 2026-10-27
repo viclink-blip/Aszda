@@ -1,6 +1,7 @@
 # Deployment
 
-Nothing has been deployed yet. This is the recommended path for a first staging/production setup.
+Nothing has been deployed yet. **Step-by-step for one DigitalOcean Droplet: [DEPLOY_DIGITALOCEAN.md](DEPLOY_DIGITALOCEAN.md)**
+(`docker-compose.prod.yml` + Caddy for HTTPS). The rest of this page describes the general setup.
 
 ## What you need
 | Piece | Options |

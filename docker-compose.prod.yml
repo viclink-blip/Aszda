@@ -1,0 +1,98 @@
+# Production stack for ONE server (e.g. a DigitalOcean Droplet). See docs/DEPLOY_DIGITALOCEAN.md.
+#
+#   cp .env.production.example .env.production   # then fill it in
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# Caddy is the only service with public ports (80/443): it gets HTTPS certificates
+# automatically, sends /api/* straight to the API (so the API sees each visitor's real IP)
+# and everything else to the web app. Media files go to DigitalOcean Spaces (S3), not the disk.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aszda
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: aszda
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aszda"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      ASZDA_ENV: production
+      DATABASE_URL: postgresql+psycopg://aszda:${POSTGRES_PASSWORD}@db:5432/aszda
+      REDIS_URL: redis://redis:6379/0
+      ASZDA_RATELIMIT_STORAGE_URI: redis://redis:6379/1
+      ASZDA_TRUSTED_PROXIES: "1"
+      ASZDA_COOKIE_SECURE: "true"
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    # -B also runs Celery beat (stuck-job recovery, plan expiry). Keep exactly ONE worker with -B.
+    command: ["celery", "-A", "celery_worker.celery", "worker", "-B", "--loglevel=info", "-Q", "aszda", "--concurrency=2"]
+    env_file: .env.production
+    environment:
+      ASZDA_ENV: production
+      DATABASE_URL: postgresql+psycopg://aszda:${POSTGRES_PASSWORD}@db:5432/aszda
+      REDIS_URL: redis://redis:6379/0
+      ASZDA_RATELIMIT_STORAGE_URI: redis://redis:6379/1
+      ASZDA_COOKIE_SECURE: "true"
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        ASZDA_API_URL: http://api:5000
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      ASZDA_DOMAIN: ${ASZDA_DOMAIN:?set ASZDA_DOMAIN in .env.production}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env.production}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:

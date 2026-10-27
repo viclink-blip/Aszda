@@ -169,6 +169,7 @@ From the first build's browser smoke test: [docs/screenshots/](docs/screenshots/
 - [docs/API.md](docs/API.md) — API overview (full spec at `GET /api/openapi.json`)
 - [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) — every setting explained
 - [docs/DATABASE.md](docs/DATABASE.md) — tables and migrations
+- [docs/DEPLOY_DIGITALOCEAN.md](docs/DEPLOY_DIGITALOCEAN.md) — deploy on one DigitalOcean Droplet (Docker, Caddy HTTPS, Spaces)
 - [docs/PROVIDERS.md](docs/PROVIDERS.md) — AI providers: what is verified, how to add one
 - [docs/CREDITS.md](docs/CREDITS.md) — credits, pricing and limits
 - [docs/CREDIT_PRICING_PROPOSAL.md](docs/CREDIT_PRICING_PROPOSAL.md) — audit of generation costs and the proposed credit prices (awaiting approval)

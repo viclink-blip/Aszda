@@ -1,0 +1,36 @@
+# Caddy for ASZDA Studio: automatic HTTPS (Let's Encrypt) for ASZDA_DOMAIN.
+# /api/* goes straight to the Flask API, so it receives the visitor's real IP in
+# X-Forwarded-For (the API trusts exactly one proxy: ASZDA_TRUSTED_PROXIES=1).
+{
+	email {$ACME_EMAIL}
+}
+
+{$ASZDA_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		-Server
+	}
+
+	handle /api/* {
+		# Uploads up to ASZDA_MAX_UPLOAD_MB (50) plus room for the form.
+		request_body {
+			max_size 55MB
+		}
+		reverse_proxy api:5000 {
+			transport http {
+				read_timeout 130s
+			}
+		}
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}
+
+# Visitors typing www. are sent to the main address.
+www.{$ASZDA_DOMAIN} {
+	redir https://{$ASZDA_DOMAIN}{uri} permanent
+}
