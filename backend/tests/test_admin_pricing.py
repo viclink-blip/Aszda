@@ -265,15 +265,19 @@ def test_pricing_dry_run_changes_nothing(app, admin_prices):
     catalog_mod.set_override(None)
     with app.app_context():
         lines = apply_pricing_document(_proposal(), actor_id=None, commit=False)
-        assert len(lines) == 14
+        assert len(lines) == 16
+        # Google image models are not offered by the test server: skipped, not an error.
+        assert "google:gemini-nano-banana-2.1: skipped (this server does not offer it)" in lines
         assert db.session.query(GenerationPrice).count() == 0
         assert db.session.query(BillingItemSetting).count() == 0
 
 
-def test_proposal_keeps_at_least_50_percent_margin(app, make_user, admin_prices):
+def test_proposal_keeps_at_least_50_percent_margin(app, make_user, admin_prices, monkeypatch):
     from app.services.pricing_settings import apply_pricing_document
 
     catalog_mod.set_override(None)
+    monkeypatch.setitem(app.config, "GEMINI_API_KEY", "g")
+    monkeypatch.setitem(app.config, "GOOGLE_IMAGE_MODELS", ["gemini-nano-banana-2.1", "gemini-3.1-flash-image"])
     with app.app_context():
         apply_pricing_document(_proposal(), actor_id=None, commit=True)
     data = make_user(admin=True).get("/api/admin/pricing").get_json()
@@ -285,6 +289,11 @@ def test_proposal_keeps_at_least_50_percent_margin(app, make_user, admin_prices)
     assert jobs[("runway", "veo3.1_fast", "8-second clip with audio")] == 320
     assert jobs[("anthropic", "claude-opus-5-5", "Script draft: 1,500 tokens in, 4,000 out")] == 23
     assert jobs[("openai", "tts-1", "1,000 characters (about 1 minute of speech)")] == 4
+    assert jobs[("google", "gemini-nano-banana-2.1", "1K image")] == 10
+    assert jobs[("google", "gemini-nano-banana-2.1", "2K image")] == 14
+    assert jobs[("google", "gemini-nano-banana-2.1", "4K image")] == 31
+    assert jobs[("google", "gemini-3.1-flash-image", "1K image")] == 19
+    assert jobs[("google", "gemini-3.1-flash-image", "4K image")] == 41
     # Every plan and package keeps >= 50% gross margin even if all credits go to the
     # most expensive generation per credit, after the 3.8% card fee.
     for item in data["plans"] + data["credit_packages"]:

@@ -77,6 +77,7 @@ Pricing-file format (also used for generation entries in a pricing document):
   (tokens, characters, video seconds...). Cost is rounded **up** to a whole credit.
 - `minimum_credits` — smallest charge per job.
 - `provider_usd_per_1000` — *optional*: what the provider charges you, used only in margin reports.
+- `only_if_offered` — *optional*, `true`: skip this line (instead of failing) when the server does not offer the model, for providers whose model IDs depend on the account (Google).
 
 Each job stores the price it started with, so changing a price never affects jobs already running.
 

@@ -30,7 +30,15 @@
     {"provider": "runway", "model": "veo3.1_fast",
      "credits_per_1000": {"video_seconds": 27000, "video_seconds_with_audio": 40000}, "minimum_credits": 108,
      "provider_usd_per_1000": {"video_seconds": 100, "video_seconds_with_audio": 150},
-     "provider_price_source": "Runway API pricing page via search summary (2026-10-22): 10 credits/s, 15 with audio; 1 API credit = $0.01"}
+     "provider_price_source": "Runway API pricing page via search summary (2026-10-22): 10 credits/s, 15 with audio; 1 API credit = $0.01"},
+    {"provider": "google", "model": "gemini-nano-banana-2.1", "only_if_offered": true,
+     "credits_per_1000": {"images_1k": 10000, "images_2k": 14000, "images_4k": 31000}, "minimum_credits": 10,
+     "provider_usd_per_1000": {"images_1k": 35.6, "images_2k": 52.4, "images_4k": 115},
+     "provider_price_source": "Gemini API pricing page via search summary (2026-10-28): $30 per 1M image output tokens = $0.0336 (1K) / $0.0504 (2K) / $0.113 (4K) per image, plus $0.002 assumed for prompt and other tokens. APPROVED by the founder on 2026-10-28."},
+    {"provider": "google", "model": "gemini-3.1-flash-image", "only_if_offered": true,
+     "credits_per_1000": {"images_1k": 19000, "images_2k": 28000, "images_4k": 41000}, "minimum_credits": 19,
+     "provider_usd_per_1000": {"images_1k": 69, "images_2k": 103, "images_4k": 153},
+     "provider_price_source": "Gemini API pricing page via search summary (2026-10-28): $0.067 (1K) / $0.101 (2K) / $0.151 (4K) per image, plus $0.002 assumed for prompt and other tokens. APPROVED by the founder on 2026-10-28."}
   ],
   "plans": [
     {"code": "starter", "credits": 1000, "monthly_credit_limit": 5000},

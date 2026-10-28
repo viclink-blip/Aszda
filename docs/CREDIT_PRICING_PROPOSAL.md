@@ -134,6 +134,19 @@ The founder decided:
 3. **Runway safety blocks:** the customer is refunded in full, and the Runway charge is recorded as an ASZDA cost. Built.
 4. **Free plan:** 50 credits once per eligible new account, given on email confirmation, once per inbox. Built.
 5. **Voice models:** keep them until the provider shuts them down. OpenAI lists all current TTS models for shutdown on 2027-01-06; ASZDA shows this and refuses them from that date. A Realtime-API voice adapter is needed before then.
+6. **Images use Google** (decided and approved 2026-10-28), priced per image:
+
+   | Model | 1K | 2K | 4K | Provider cost used (1K / 2K / 4K) |
+   |---|---|---|---|---|
+   | `gemini-nano-banana-2.1` (recommended) | 10 | 14 | 31 | $0.0356 / $0.0524 / $0.115 |
+   | `gemini-3.1-flash-image` | 19 | 28 | 41 | $0.069 / $0.103 / $0.153 |
+
+   Provider costs are Google's per-image prices from the Gemini API pricing page, read through
+   search summaries on 2026-10-28, plus $0.002 assumed for the prompt and other tokens. Every
+   price earns at least 262.5 credits per US$1, so the margins in section 6 do not change.
+   **Verify on Google's pricing page before customers use it.** The model IDs depend on the
+   Google account: these lines carry `"only_if_offered": true` in `pricing.approved.json`, so
+   they are skipped (not an error) when the server does not offer that model.
 
 Original questions, kept for reference:
 

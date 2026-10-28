@@ -25,8 +25,8 @@ from app.services import audit, pricing
 
 bp = Blueprint("admin_pricing", __name__, url_prefix="/api/admin/pricing")
 
-# Typical jobs used to explain costs and margins (not limits). Keyed by provider:model,
-# falling back to the model's kind.
+# Typical jobs used to explain costs and margins (not limits). Keyed by provider:model, then
+# provider:kind (for providers whose model IDs are configured), falling back to the model's kind.
 REFERENCE_JOBS: dict[str, list[tuple[str, dict[str, float]]]] = {
     "text": [("Script draft: 1,500 tokens in, 4,000 out", {"input_tokens": 1500, "output_tokens": 4000}),
              ("Longest allowed answer: 3,000 in, 16,000 out", {"input_tokens": 3000, "output_tokens": 16000})],
@@ -35,6 +35,8 @@ REFERENCE_JOBS: dict[str, list[tuple[str, dict[str, float]]]] = {
     "runway:gen4.5": [("5-second clip", {"video_seconds": 5}), ("10-second clip (longest)", {"video_seconds": 10})],
     "runway:veo3.1_fast": [("8-second clip, no audio", {"video_seconds": 8}),
                            ("8-second clip with audio", {"video_seconds_with_audio": 8})],
+    "google:image": [("1K image", {"images_1k": 1}), ("2K image", {"images_2k": 1}), ("4K image", {"images_4k": 1})],
+    "openai:image": [("Medium-quality image", {"images_medium": 1}), ("High-quality image", {"images_high": 1})],
 }
 
 
@@ -70,7 +72,8 @@ def _fee_rate() -> Decimal:
 
 
 def _reference_jobs(provider: str, spec) -> list[tuple[str, dict]]:
-    return REFERENCE_JOBS.get(f"{provider}:{spec.id}") or REFERENCE_JOBS.get(spec.kind.value, [])
+    return (REFERENCE_JOBS.get(f"{provider}:{spec.id}") or REFERENCE_JOBS.get(f"{provider}:{spec.kind.value}")
+            or REFERENCE_JOBS.get(spec.kind.value, []))
 
 
 def _generation_rows() -> tuple[list[dict], Decimal | None]:

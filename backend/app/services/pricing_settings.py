@@ -46,6 +46,11 @@ def apply_pricing_document(document: dict, *, actor_id: uuid.UUID | None, commit
         where = f"generation[{i}]"
         adapter = registry.get_adapter(str(entry.get("provider")))
         spec = adapter.get_model(str(entry.get("model"))) if adapter else None
+        if spec is None and adapter is not None and entry.get("only_if_offered") is True:
+            # For model IDs that depend on the provider account (Google): not an error when this
+            # server does not offer the model.
+            changes.append(f"{adapter.name}:{entry.get('model')}: skipped (this server does not offer it)")
+            continue
         if spec is None:
             raise ValueError(f"{where}: unknown provider/model {entry.get('provider')}:{entry.get('model')}")
         rates = _check_rates(f"{where}.credits_per_1000", entry.get("credits_per_1000"), spec.usage_metrics, True)
