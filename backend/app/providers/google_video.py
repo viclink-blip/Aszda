@@ -218,8 +218,11 @@ class GoogleVideoAdapter(ProviderAdapter):
             number_of_videos=1, duration_seconds=p["duration"], aspect_ratio=p["aspect_ratio"],
             resolution=p["resolution"], negative_prompt=p.get("negative_prompt") or None,
             person_generation=p.get("person_generation") or None)
+        # Keep the client referenced while it is used: google-genai closes its HTTP connection
+        # when the Client object is garbage-collected.
+        client = self._client()
         operation = self._call(
-            self._client().models.generate_videos, model=ctx.model,
+            client.models.generate_videos, model=ctx.model,
             source=types.GenerateVideosSource(prompt=p.get("prompt_text") or None, image=image), config=config)
         name = getattr(operation, "name", None)
         if not name:
@@ -290,7 +293,8 @@ class GoogleVideoAdapter(ProviderAdapter):
         """IDs of the image and Veo models this credential can see (models.list; nothing is
         generated). Used to choose ASZDA_GOOGLE_IMAGE_MODELS / ASZDA_GOOGLE_VIDEO_MODELS."""
         found = []
-        for model in self._call(self._client().models.list):
+        client = self._client()  # kept referenced (see submit); the pager uses it for every page
+        for model in self._call(client.models.list):
             model_id = (getattr(model, "name", None) or "").rsplit("/", 1)[-1]
             if "image" in model_id or "veo" in model_id:
                 found.append(model_id)

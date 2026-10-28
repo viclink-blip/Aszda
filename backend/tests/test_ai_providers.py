@@ -626,6 +626,41 @@ def test_google_models_command_lists_image_and_veo_models(app, cfg, monkeypatch)
         assert runner.invoke(args=["aszda", "google-models"]).exit_code != 0
 
 
+class ClosingGenai:
+    """Like google.genai.Client: closes its connection when garbage-collected."""
+
+    def __init__(self, state):
+        self.state = state
+        state["closed"] = False
+
+        def use(name):
+            def call(**kwargs):
+                if state["closed"]:
+                    raise RuntimeError("Cannot send a request, as the client has been closed.")
+                state["calls"].append(name)
+                return iter([pytypes.SimpleNamespace(name="models/veo-test-model")]) if name == "list" else \
+                    pytypes.SimpleNamespace(name="op-1")
+            return call
+
+        self.models = pytypes.SimpleNamespace(list=use("list"), generate_videos=use("generate_videos"))
+
+    def __del__(self):
+        self.state["closed"] = True
+
+
+def test_google_client_stays_open_while_used(app_ctx, cfg, monkeypatch):
+    """Regression: an unreferenced client was closed before its request was sent."""
+    cfg(GEMINI_API_KEY="g", GOOGLE_VIDEO_MODELS=["veo-test-model"])
+    state = {"calls": []}
+    monkeypatch.setattr(GoogleVideoAdapter, "_client", lambda self: ClosingGenai(state))
+    adapter = GoogleVideoAdapter()
+    assert adapter.list_media_models() == ["veo-test-model"]
+    params = adapter.validate(adapter.get_model("veo-test-model"), {"prompt_text": "A fox runs"})
+    outcome = adapter.submit(JobContext(job_id=uuid.uuid4(), model="veo-test-model", params=params,
+                                        provider_job_id=None, load_asset=None))
+    assert outcome.provider_job_id == "op-1" and state["calls"] == ["list", "generate_videos"]
+
+
 def test_google_image_job_end_to_end_with_credits(app, make_user, google_images):
     add_prices({"google:gemini-image-test": price(images_1k=9000, images_2k=14000, images_4k=30000)})
     google_images.image_responses = [gemini_response([image_part()])]
