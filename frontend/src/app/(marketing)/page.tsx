@@ -17,7 +17,7 @@ export default function HomePage() {
           <h1 className="mt-4 font-display text-5xl leading-[1.02] font-semibold tracking-tight text-fg sm:text-6xl lg:text-7xl">
             Imagine It.
             <br />
-            Create It.
+            <span className="text-brand">Create It.</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted">
             ASZDA Studio turns your ideas into video, animation, voice and AI-film workflows. Plan the

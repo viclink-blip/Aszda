@@ -10,56 +10,68 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 :root {
-  --bg: #f7f6f3;
+  /* Colours taken from the ASZDA Studio logo: electric blue (A), orange (S),
+     the blue → purple → orange glow of its border, on deep navy black. */
+  --bg: #f5f6fb;
   --surface: #ffffff;
-  --surface-2: #f0efeb;
-  --surface-3: #e7e5e0;
-  --line: #e2e0da;
-  --line-strong: #cbc8c0;
-  --text: #17181a;
-  --muted: #55575c;
-  --subtle: #74767b;
-  --accent: #c8431d;
-  --accent-hover: #ad3816;
+  --surface-2: #eef0f7;
+  --surface-3: #e3e6f0;
+  --line: #dfe2ec;
+  --line-strong: #c5cad9;
+  --text: #0b0d18;
+  --muted: #4d5266;
+  --subtle: #6b7086;
+  --accent: #1d4fe0;
+  --accent-hover: #1640bd;
   --accent-fg: #ffffff;
-  --accent-soft: #f8e6df;
+  --accent-soft: #e3eaff;
+  --accent-2: #d9520b;
   --success: #1f7a4d;
   --success-soft: #e1f1e8;
   --warning: #8a5a00;
   --warning-soft: #f8edd3;
   --danger: #b42318;
   --danger-soft: #fbe5e2;
-  --info: #1d5fa8;
-  --info-soft: #e2ecf8;
-  --focus: #c8431d;
-  --shadow: 0 1px 2px rgb(23 24 26 / 0.06), 0 4px 16px rgb(23 24 26 / 0.04);
+  --info: #0a6aa8;
+  --info-soft: #e0f0fa;
+  --focus: #1d4fe0;
+  /* Button fill: every stop keeps white text above 4.5:1 contrast. */
+  --brand-gradient: linear-gradient(100deg, #2158e8 0%, #7a3ae6 55%, #c9440c 100%);
+  /* Decorative only (headline text, lines): the logo's brighter neon. */
+  --brand-gradient-text: linear-gradient(90deg, #1d5cff 0%, #8b3dff 50%, #f06a0f 100%);
+  --brand-glow: 0 6px 22px rgb(80 70 240 / 0.28);
+  --shadow: 0 1px 2px rgb(11 13 24 / 0.06), 0 4px 16px rgb(11 13 24 / 0.05);
   color-scheme: light;
 }
 
 [data-theme="dark"] {
-  --bg: #0f1012;
-  --surface: #17181b;
-  --surface-2: #1e2024;
-  --surface-3: #272a2f;
-  --line: #2a2d32;
-  --line-strong: #3b3f46;
-  --text: #ecedee;
-  --muted: #a5a8ae;
-  --subtle: #8a8d94;
-  --accent: #ff6b3d;
-  --accent-hover: #ff8560;
-  --accent-fg: #160a05;
-  --accent-soft: #3a1d13;
+  --bg: #05060c;
+  --surface: #0c0f1c;
+  --surface-2: #131729;
+  --surface-3: #1b2036;
+  --line: #1f2540;
+  --line-strong: #2f3758;
+  --text: #eef0f8;
+  --muted: #a8aec4;
+  --subtle: #8a91aa;
+  --accent: #4d94ff;
+  --accent-hover: #74abff;
+  --accent-fg: #04081a;
+  --accent-soft: #10204a;
+  --accent-2: #ff8a1f;
   --success: #4cc38a;
-  --success-soft: #163024;
+  --success-soft: #11291f;
   --warning: #f0b44c;
-  --warning-soft: #33280f;
+  --warning-soft: #2e240e;
   --danger: #ff6b5e;
-  --danger-soft: #3a1714;
-  --info: #6aa8f0;
-  --info-soft: #132538;
-  --focus: #ff6b3d;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 24px rgb(0 0 0 / 0.25);
+  --danger-soft: #34141a;
+  --info: #45c8ff;
+  --info-soft: #0c2536;
+  --focus: #4d94ff;
+  --brand-gradient: linear-gradient(100deg, #2158e8 0%, #7a3ae6 55%, #c9440c 100%);
+  --brand-gradient-text: linear-gradient(90deg, #3aa0ff 0%, #a056ff 50%, #ff8a1f 100%);
+  --brand-glow: 0 0 0 1px rgb(140 110 255 / 0.25), 0 6px 26px rgb(90 80 255 / 0.45);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 6px 24px rgb(0 0 0 / 0.35);
   color-scheme: dark;
 }
 
@@ -77,6 +89,7 @@
   --color-accent-hover: var(--accent-hover);
   --color-accent-fg: var(--accent-fg);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-2: var(--accent-2);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
@@ -128,6 +141,26 @@
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+/* The logo's gradient as a button fill. */
+@utility bg-brand {
+  background-image: var(--brand-gradient);
+  box-shadow: var(--brand-glow);
+}
+
+/* Gradient headline text, like the logo's colours. */
+@utility text-brand {
+  background-image: var(--brand-gradient-text);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* A thin neon line in the logo's colours (under the header). */
+@utility brand-line {
+  background-image: var(--brand-gradient-text);
+  height: 1px;
 }
 
 @utility container-page {

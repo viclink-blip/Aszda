@@ -91,6 +91,8 @@ export function SiteHeader() {
           </RadixDialog.Root>
         </div>
       </div>
+      {/* Thin neon line in the logo's colours. */}
+      <div aria-hidden className="brand-line pointer-events-none absolute inset-x-0 -bottom-px opacity-60" />
     </header>
   );
 }

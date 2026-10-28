@@ -57,6 +57,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <ThemeToggle />
             <UserMenu />
           </div>
+          {/* Thin neon line in the logo's colours. */}
+          <div aria-hidden className="brand-line pointer-events-none absolute inset-x-0 -bottom-px opacity-60" />
         </header>
         <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
           <VerifyEmailBanner />
