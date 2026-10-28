@@ -21,10 +21,53 @@ import { useToast } from "@/components/ui/toast";
 import { useApi } from "@/hooks/use-api";
 import { useJobPolling } from "@/hooks/use-job-polling";
 import { api, errorMessage, newIdempotencyKey } from "@/lib/api";
-import { providerLabel } from "@/lib/format";
-import type { CapabilityRoute, Scene, SceneGenerationResult } from "@/lib/types";
+import { formatRelative, providerLabel } from "@/lib/format";
+import type { CapabilityRoute, Job, Scene, SceneGenerationResult } from "@/lib/types";
 
 const IDEA_MAX = 10000;
+const DRAFT_KEY = "aszda-director-idea:";
+
+// The unsent idea is kept per project in this browser only; storage can be unavailable.
+function readDraft(projectId: string): string {
+  try {
+    return localStorage.getItem(DRAFT_KEY + projectId) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeDraft(projectId: string, text: string) {
+  try {
+    if (text) localStorage.setItem(DRAFT_KEY + projectId, text);
+    else localStorage.removeItem(DRAFT_KEY + projectId);
+  } catch {
+    // Not saved; the idea still works for this visit.
+  }
+}
+
+const isPlan = (j: Job) => j.params.task === "director_plan";
+const scriptText = (j: Job) => (typeof j.result?.text === "string" ? j.result.text : "");
+
+/** Finished Script Studio answers saved in the project, to start a plan from. */
+function ProjectScripts({ scripts, onUse }: { scripts: Job[]; onUse: (job: Job) => void }) {
+  if (scripts.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-line bg-surface-2 p-3">
+      <p className="text-sm font-medium text-fg">Scripts in this project</p>
+      <ul className="mt-2 flex flex-col gap-2">
+        {scripts.slice(0, 5).map((j) => (
+          <li key={j.id} className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0 truncate text-muted">
+              {j.result?.title || scriptText(j).slice(0, 80)}
+              <span className="ml-2 text-xs text-subtle">{formatRelative(j.completed_at ?? j.created_at)}</span>
+            </span>
+            <Button size="sm" variant="outline" onClick={() => onUse(j)}>Use this script</Button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 type SceneKind = "image" | "video" | "voice";
 const KIND_INFO: Record<SceneKind, { label: string; icon: typeof ImageIcon; route: CapabilityRoute["kind"] }> = {
@@ -142,20 +185,31 @@ export function DirectorView() {
   const { refresh } = useCredits();
   const params = useSearchParams();
   const [projectId, setProjectId] = useState<string | null>(params.get("project"));
-  const [idea, setIdea] = useState("");
+  const [idea, setIdeaState] = useState("");
   const fromJob = params.get("from_job");
   const [loadedFrom, setLoadedFrom] = useState<{ cut: boolean } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const setIdea = (text: string) => {
+    setIdeaState(text);
+    if (projectId) writeDraft(projectId, text);
+  };
+  const pickScript = (text: string) => {
+    setIdea(text.slice(0, IDEA_MAX));
+    setLoadedFrom({ cut: text.length > IDEA_MAX });
+  };
   // "Send to AI Film Director" from a Script Studio answer: start from that text.
   useEffect(() => {
     if (!fromJob) return;
     let cancelled = false;
     api.generation.get(fromJob).then(({ job: source }) => {
-      const text = typeof source.result?.text === "string" ? source.result.text : "";
+      const text = scriptText(source);
       if (cancelled || !text) return;
-      setIdea((current) => current || text.slice(0, IDEA_MAX));
+      setIdeaState((current) => current || text.slice(0, IDEA_MAX));
       setLoadedFrom({ cut: text.length > IDEA_MAX });
       if (source.project_id) setProjectId((current) => current ?? source.project_id);
-    }).catch(() => undefined);
+    }).catch((err) => {
+      if (!cancelled) setLoadError(errorMessage(err));
+    });
     return () => { cancelled = true; };
   }, [fromJob]);
   const [effort, setEffort] = useState<"low" | "medium" | "high">("medium");
@@ -166,6 +220,31 @@ export function DirectorView() {
   const [version, setVersion] = useState(0);
   const { job, setJob, pollError } = useJobPolling();
   const { data: caps } = useApi(() => api.generation.capabilities(), []);
+  // The project's earlier work: its latest plan, and scripts written for it.
+  const { data: history } = useApi(
+    () => (projectId ? api.generation.list({ project_id: projectId, kind: "text", limit: 50 }) : Promise.resolve(null)),
+    [projectId, version],
+  );
+  const { data: project } = useApi(
+    () => (projectId ? api.projects.get(projectId) : Promise.resolve(null)), [projectId, version]);
+  const historyFor = history && history.items.every((j) => j.project_id === projectId) ? history.items : null;
+  const scripts = (historyFor ?? []).filter((j) => !isPlan(j) && j.status === "completed" && scriptText(j));
+  const appliedIds = (project?.project.brief?.director_applied_jobs as string[] | undefined) ?? [];
+  const alreadyApplied = applied || (job != null && appliedIds.includes(job.id));
+  const [restored, setRestored] = useState(false);
+  const [syncedHistory, setSyncedHistory] = useState<typeof history>(undefined);
+
+  // When a project's history arrives: show its latest plan (unless a plan for this project is
+  // already on screen) and bring back the unsent idea. Adjusted during render, not in an effect.
+  if (projectId && historyFor && history !== syncedHistory) {
+    setSyncedHistory(history);
+    if (!job || job.project_id !== projectId) {
+      setJob(historyFor.find(isPlan) ?? null);
+      setRestored(true);
+      setApplied(false);
+      if (!idea) setIdeaState(readDraft(projectId));
+    }
+  }
   const routing = caps?.capabilities;
   const planReady = routing?.find((r) => r.kind === "text")?.ready != null;
 
@@ -178,6 +257,7 @@ export function DirectorView() {
     try {
       const { job: created } = await api.director.plan(projectId, { idea, effort }, newIdempotencyKey());
       setJob(created);
+      setRestored(false);
       refresh();
     } catch (err) {
       setFormError(errorMessage(err));
@@ -216,6 +296,8 @@ export function DirectorView() {
           <CardBody>
             <form onSubmit={plan} className="flex flex-col gap-4">
               <ProjectSelect value={projectId} onChange={setProjectId} required allowCreate help="The plan, scenes and generated files are saved to this project." />
+              {loadError && <Notice tone="warning">Your script could not be loaded ({loadError}). Choose it below or paste it.</Notice>}
+              {!idea && <ProjectScripts scripts={scripts} onUse={(j) => pickScript(scriptText(j))} />}
               {loadedFrom && (
                 <Notice tone="info">
                   Your script was copied into &ldquo;Your idea&rdquo;. You can edit it before creating the plan.
@@ -243,14 +325,15 @@ export function DirectorView() {
 
         {job && (
           <Card>
-            <CardHeader title="2. Review the plan" action={<StatusBadge status={job.status} />} />
+            <CardHeader title="2. Review the plan" action={<StatusBadge status={job.status} />}
+              description={restored ? `This project's latest plan, created ${formatRelative(job.created_at)}.` : undefined} />
             <CardBody className="flex flex-col gap-4">
               {pollError && <Notice tone="warning">{pollError}</Notice>}
               {job.status === "completed" ? (
                 <>
                   <JobResult job={job} />
                   <div className="flex flex-wrap items-center gap-3">
-                    <Button onClick={apply} loading={applying} disabled={applied}>{applied ? "Added to project" : "Add to project"}</Button>
+                    <Button onClick={apply} loading={applying} disabled={alreadyApplied}>{alreadyApplied ? "Added to project" : "Add to project"}</Button>
                     <span className="text-xs text-subtle">Adds the characters and scenes; your existing scenes are kept.</span>
                   </div>
                 </>
