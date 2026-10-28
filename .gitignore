@@ -29,3 +29,6 @@ frontend/next-env.d.ts
 .idea/
 .vscode/
 backend/live-test-output/
+
+# Celery beat state (written by a local worker)
+celerybeat-schedule*
