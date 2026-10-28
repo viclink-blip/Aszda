@@ -29,7 +29,7 @@ export const STUDIOS: Studio[] = [
     href: "/app/studio/image",
     icon: ImageIcon,
     summary: "Create character designs, key frames and storyboard images from a description.",
-    provider: "OpenAI",
+    provider: "Google",
   },
   {
     slug: "video",
@@ -93,9 +93,9 @@ export const PLANNED: PlannedFeature[] = [
 /** The providers ASZDA works with today (no proprietary models). */
 export const PROVIDERS = [
   { name: "Anthropic Claude", role: "Writing — story concepts, scripts, characters and scene breakdowns", icon: FileText },
-  { name: "OpenAI", role: "Voice and images — text-to-speech and GPT Image", icon: AudioLines },
+  { name: "OpenAI", role: "Voice — text-to-speech", icon: AudioLines },
   { name: "Runway", role: "Video — text-to-video and image-to-video clips", icon: Film },
-  { name: "Google Veo", role: "Video — text-to-video and image-to-video clips with sound", icon: Film },
+  { name: "Google", role: "Images — Gemini image models; video — Veo clips with sound", icon: ImageIcon },
 ];
 
 export const CONTACT_EMAIL = "hello@aszda.example"; // placeholder: replace before launch
