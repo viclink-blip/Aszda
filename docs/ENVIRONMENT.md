@@ -73,7 +73,8 @@ Setup steps for each provider: [PROVIDERS.md](PROVIDERS.md).
 | `GEMINI_API_KEY` | Google | Gemini API key from Google AI Studio. Not needed with Vertex AI. |
 | `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | Google | Use Vertex AI instead of a Gemini API key. Credentials come from `GOOGLE_APPLICATION_CREDENTIALS` (a mounted service-account file) or the platform. |
 | `ASZDA_GOOGLE_VIDEO_MODELS` / `ASZDA_GOOGLE_VIDEO_MODEL` | Google | Veo model IDs to offer / the default. **No default**: see PROVIDERS.md. |
-| `ASZDA_AI_TEXT_PROVIDER`, `ASZDA_AI_IMAGE_PROVIDER`, `ASZDA_AI_VIDEO_PROVIDER`, `ASZDA_AI_VOICE_PROVIDER` | routing | Provider used when a request names none. Defaults: `anthropic`, `openai`, `runway`, `openai`. |
+| `ASZDA_GOOGLE_IMAGE_MODELS` / `ASZDA_GOOGLE_IMAGE_MODEL` | Google | Gemini image model IDs to offer / the default. **No default**: list yours with `flask --app wsgi aszda google-models`. |
+| `ASZDA_AI_TEXT_PROVIDER`, `ASZDA_AI_IMAGE_PROVIDER`, `ASZDA_AI_VIDEO_PROVIDER`, `ASZDA_AI_VOICE_PROVIDER` | routing | Provider used when a request names none. Defaults: `anthropic`, `google`, `runway`, `openai`. |
 | `ASZDA_AI_TEXT_FALLBACKS`, `ASZDA_AI_IMAGE_FALLBACKS`, `ASZDA_AI_VIDEO_FALLBACKS`, `ASZDA_AI_VOICE_FALLBACKS` | routing | Comma-separated providers tried in order if the preferred one is not ready. Default for video: `google`. |
 | `ASZDA_DISABLED_PROVIDERS` | routing | Providers switched off even with a key, for example `google`. |
 | `ASZDA_PROVIDER_POLL_SECONDS` | | How often to check asynchronous jobs (default 10; Runway asks for ≥ 5). |

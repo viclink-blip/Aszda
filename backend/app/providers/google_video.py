@@ -1,4 +1,5 @@
-"""Google Veo video generation through the official `google-genai` Python SDK.
+"""Google: Veo video generation, and image generation with Gemini image models (see
+google_image.py), through the official `google-genai` Python SDK.
 
 Two ways to connect (the SDK supports both with the same calls):
 - Gemini API: GEMINI_API_KEY (from Google AI Studio).
@@ -40,6 +41,7 @@ from flask import current_app
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models import AssetKind, GenerationKind
+from app.providers import google_image
 from app.providers.base import (
     JobContext,
     ModelSpec,
@@ -115,11 +117,12 @@ def _errors():
 
 class GoogleVideoAdapter(ProviderAdapter):
     name = "google"
-    label = "Google Veo"
+    label = "Google"
     credential_env = "GEMINI_API_KEY"
     supports_cancel = False
-    default_model_settings = {GenerationKind.VIDEO: "GOOGLE_VIDEO_MODEL"}
-    connection_test = ("Looks up each configured Veo model (models.get). Nothing is generated; Google "
+    default_model_settings = {GenerationKind.VIDEO: "GOOGLE_VIDEO_MODEL",
+                              GenerationKind.IMAGE: "GOOGLE_IMAGE_MODEL"}
+    connection_test = ("Looks up each configured Veo and image model (models.get). Nothing is generated; Google "
                        "does not document a charge for model lookups.")
 
     # ---- Configuration -------------------------------------------------------------------
@@ -135,8 +138,8 @@ class GoogleVideoAdapter(ProviderAdapter):
                                        ("GOOGLE_CLOUD_LOCATION", "GOOGLE_CLOUD_LOCATION")) if not cfg.get(k)]
         elif not cfg.get("GEMINI_API_KEY"):
             missing.append("GEMINI_API_KEY")
-        if not cfg.get("GOOGLE_VIDEO_MODELS"):
-            missing.append("ASZDA_GOOGLE_VIDEO_MODELS")
+        if not cfg.get("GOOGLE_VIDEO_MODELS") and not cfg.get("GOOGLE_IMAGE_MODELS"):
+            missing.append("ASZDA_GOOGLE_VIDEO_MODELS or ASZDA_GOOGLE_IMAGE_MODELS")
         return missing
 
     def is_configured(self) -> bool:
@@ -149,9 +152,11 @@ class GoogleVideoAdapter(ProviderAdapter):
                       params_model=VeoParams, fields=FIELDS,
                       usage_metrics=["video_seconds_720p", "video_seconds_1080p"])
             for model_id in current_app.config.get("GOOGLE_VIDEO_MODELS", [])
-        ]
+        ] + google_image.image_specs()
 
     def estimate_usage(self, model: ModelSpec, params: dict[str, Any]) -> dict[str, float]:
+        if model is not None and model.kind == GenerationKind.IMAGE:
+            return google_image.estimate_usage(params)
         return {f"video_seconds_{params['resolution']}": params["duration"]}
 
     def _client(self):
@@ -174,7 +179,7 @@ class GoogleVideoAdapter(ProviderAdapter):
             if code in (401, 403):
                 return ProviderError("Google rejected the credential.", code="provider_auth_failed")
             if code == 404:
-                return ProviderError("This Veo model is not available to this account.", code="model_unavailable")
+                return ProviderError("This Google model is not available to this account.", code="model_unavailable")
             if code == 429:
                 return ProviderError("Google's rate limit or quota was reached.", code="provider_rate_limited",
                                      retryable=True)
@@ -197,6 +202,9 @@ class GoogleVideoAdapter(ProviderAdapter):
     def submit(self, ctx: JobContext) -> ProviderOutcome:
         from google.genai import types
 
+        spec = self.get_model(ctx.model)
+        if spec is not None and spec.kind == GenerationKind.IMAGE:
+            return google_image.submit(ctx, self._client(), self._call)
         p = ctx.params
         image = None
         if p["mode"] == "image_to_video":
@@ -263,6 +271,8 @@ class GoogleVideoAdapter(ProviderAdapter):
             result={"google_operation": ctx.provider_job_id, "rai_media_filtered_count": filtered or 0})
 
     def params_for_brief(self, model: ModelSpec, brief: dict[str, Any]) -> dict[str, Any]:
+        if model.kind == GenerationKind.IMAGE:
+            return google_image.params_for_brief(brief)
         prompt = " ".join(x for x in (brief.get("prompt"), brief.get("style")) if x)[:2000]
         seconds = int(brief.get("duration_seconds") or 8)
         params: dict[str, Any] = {
@@ -275,6 +285,16 @@ class GoogleVideoAdapter(ProviderAdapter):
         return params
 
     # ---- Connection test -----------------------------------------------------------------
+
+    def list_media_models(self) -> list[str]:
+        """IDs of the image and Veo models this credential can see (models.list; nothing is
+        generated). Used to choose ASZDA_GOOGLE_IMAGE_MODELS / ASZDA_GOOGLE_VIDEO_MODELS."""
+        found = []
+        for model in self._call(self._client().models.list):
+            model_id = (getattr(model, "name", None) or "").rsplit("/", 1)[-1]
+            if "image" in model_id or "veo" in model_id:
+                found.append(model_id)
+        return sorted(set(found))
 
     def test_connection(self) -> str:
         client = self._client()

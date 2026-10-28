@@ -15,7 +15,7 @@ The **orchestrator** (`backend/app/services/orchestrator.py`) decides which adap
 | Anthropic | `anthropic_text.py` | Text: scripts, story development, characters, scene breakdowns, AI Film Director plans (structured JSON) | `ANTHROPIC_API_KEY` |
 | OpenAI | `openai_speech.py` + `openai_image.py` | Voice (text-to-speech) and images (GPT Image) | `OPENAI_API_KEY` |
 | Runway | `runway_video.py` | Video: text-to-video and image-to-video (`gen4.5`, `veo3.1_fast`) | `RUNWAYML_API_SECRET` |
-| Google | `google_video.py` | Video with sound: text-to-video and first-frame image-to-video (Veo) | `GEMINI_API_KEY`, or Vertex AI settings |
+| Google | `google_video.py` | Video with sound (Veo); images (Gemini image models, `google_image.py`) | `GEMINI_API_KEY`, or Vertex AI settings |
 
 ## Status: implemented, configured, tested
 
@@ -158,6 +158,27 @@ Details:
   - people (adults only, none, or all for text-to-video only; some regions allow adults only).
 - The Gemini API rejects `seed`, `generate_audio` and `fps`, so they are not offered. Veo 3.x adds audio itself.
 - Usage metrics: `video_seconds_720p`, `video_seconds_1080p`.
+
+### Google images (Gemini image models, "Nano Banana")
+
+The default image provider. It uses the same Google credential as Veo.
+
+> Imagen is **not** used. Google's deprecations page (read through search summaries on
+> 2026-10-28) lists the Imagen 4 models as shut down in the Gemini API on 2026-08-17, with the
+> Gemini image models as the replacement. ASZDA ships **no default image model ID**.
+
+1. Set `GEMINI_API_KEY=` (or the Vertex AI settings above).
+2. List the image models your key can use: `flask --app wsgi aszda google-models` (nothing is generated).
+3. Set `ASZDA_GOOGLE_IMAGE_MODELS=` to the IDs to offer, and optionally `ASZDA_GOOGLE_IMAGE_MODEL=` as the default.
+4. Add a credit price for each model (`images_1k`, `images_2k`, `images_4k`), then run Test connection.
+
+Details:
+- `models.generate_content` with `response_modalities=["IMAGE"]` and `image_config` (aspect ratio and size), checked against the `google-genai` 2.32.0 source.
+- Settings: prompt; shape 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3 or 21:9; resolution 1K, 2K or 4K. People and output-format settings are Vertex-only in the SDK, so they are not offered.
+- Draft ("thought") images some models return are skipped; the final image is stored.
+- Safety refusals (`prompt_feedback.block_reason`, or a finish reason such as `IMAGE_SAFETY`) fail the job as `content_refused` with a full refund. Google does not document a charge for these, so no cost is assumed.
+- Google bills image output by tokens; the `usage_metadata` it reports is kept with each job for cost reconciliation.
+- Usage metrics: `images_1k`, `images_2k`, `images_4k`.
 - Search-summary prices (paid tier, per second): Veo 3.1 $0.40; Veo 3.1 Fast $0.10 (720p), $0.12 (1080p); Veo 3.1 Lite $0.05/$0.08. Check them against the price for the model you enable.
 - **Credit prices are not set** for any Google model.
 - Safety-filtered results (`rai_media_filtered_count`) fail as `content_refused` with a full refund. Google does not document charging for them, so no ASZDA cost is assumed.

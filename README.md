@@ -26,9 +26,10 @@ own models can be added later without rewriting the app.
 | Credits ledger: reserve → release/refund, usage limits, expiring plan credits vs lasting purchased credits, one-time 50-credit sign-up grant | Implemented and tested |
 | Admin API: users, credits, jobs, usage, providers, audit log | Implemented and tested |
 | Script/story writing with **Anthropic Claude** | Implemented, tested with a mocked API; needs `ANTHROPIC_API_KEY` + a configured price |
-| Voice (text-to-speech) and **images (GPT Image)** with **OpenAI** | Implemented, tested with a mocked API; needs `OPENAI_API_KEY` + a configured price. All OpenAI TTS models shut down 2027-01-06 |
+| Voice (text-to-speech) and images (GPT Image, optional) with **OpenAI** | Implemented, tested with a mocked API; needs `OPENAI_API_KEY` + a configured price. All OpenAI TTS models shut down 2027-01-06 |
 | Video (text/image-to-video) with **Runway** (`gen4.5`, `veo3.1_fast`) | Implemented, tested with a mocked API; needs `RUNWAYML_API_SECRET` + a configured price |
 | Video with **Google Veo** (Gemini API or Vertex AI) | Implemented, tested with a mocked SDK; needs Google credentials, model IDs you can use, and a price |
+| **Images with Google** Gemini image models (the default image provider) | Implemented, tested with a mocked SDK and real SDK response types; needs Google credentials, model IDs you can use (`aszda google-models`), and a price |
 | AI orchestrator: routing by kind of work, explicit provider choice, configurable fallback, provenance on every asset | Implemented and tested |
 | Admin → Providers: settings readiness, connection tests (no generation), routing, provider costs | Implemented and tested |
 | **AI Film Director**: Claude plans characters and scenes (structured output), then each scene's image, video and voice are generated | Implemented and tested with mocked providers |

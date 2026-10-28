@@ -11,7 +11,7 @@ import httpx
 import pytest
 
 from app.extensions import db
-from app.models import Asset, GenerationJob, ProviderCost, Scene
+from app.models import Asset, GenerationJob, GenerationKind, ProviderCost, Scene
 from app.providers.anthropic_text import AnthropicTextAdapter
 from app.providers.base import JobContext, ProviderError
 from app.providers.google_video import GoogleVideoAdapter
@@ -79,7 +79,8 @@ def test_health_lists_missing_setting_names_and_never_secret_values(app, make_us
     body = admin.get("/api/admin/providers/health").get_json()
     health = {p["name"]: p for p in body["providers"]}
     assert health["anthropic"]["missing_settings"] == ["ANTHROPIC_API_KEY"]
-    assert health["google"]["missing_settings"] == ["GEMINI_API_KEY", "ASZDA_GOOGLE_VIDEO_MODELS"]
+    assert health["google"]["missing_settings"] == ["GEMINI_API_KEY",
+                                                    "ASZDA_GOOGLE_VIDEO_MODELS or ASZDA_GOOGLE_IMAGE_MODELS"]
     assert health["openai"]["credentials_configured"] is False
     assert health["runway"]["connection_test"]["available"] is True
     assert health["runway"]["connection_test"]["may_charge"] is False
@@ -108,7 +109,10 @@ def test_google_configuration_validation(app_ctx, cfg):
     cfg(GOOGLE_CLOUD_PROJECT="my-project", GOOGLE_CLOUD_LOCATION="us-central1")
     assert adapter.is_configured()
     cfg(GOOGLE_VIDEO_MODELS=[])
-    assert adapter.missing_settings() == ["ASZDA_GOOGLE_VIDEO_MODELS"] and adapter.model_specs() == []
+    assert adapter.missing_settings() == ["ASZDA_GOOGLE_VIDEO_MODELS or ASZDA_GOOGLE_IMAGE_MODELS"]
+    assert adapter.model_specs() == []
+    cfg(GOOGLE_IMAGE_MODELS=["gemini-image-test"])
+    assert adapter.is_configured() and [m.kind for m in adapter.model_specs()] == [GenerationKind.IMAGE]
 
 
 def test_disabled_provider_is_unavailable_even_with_a_key(app, make_user, cfg):
@@ -487,7 +491,7 @@ def test_orchestrator_unit(app_ctx, cfg):
 # ---- Paid generation through real adapters, with credits and cost logging -----------------------------
 
 def test_image_job_reserves_charges_and_logs_cost(app, make_user, cfg, monkeypatch):
-    cfg(OPENAI_API_KEY="k")
+    cfg(OPENAI_API_KEY="k", AI_IMAGE_PROVIDER="openai")
     add_prices({"openai:gpt-image-2.5-sunburst": pricing.ModelPrice(
         credits_per_1000={"images_low": 3000, "images_medium": 8000, "images_high": 25000}, minimum_credits=1,
         provider_usd_per_1000={"images_medium": 40})})
@@ -513,7 +517,7 @@ def test_image_job_reserves_charges_and_logs_cost(app, make_user, cfg, monkeypat
 
 
 def test_image_moderation_refunds_without_cost(app, make_user, cfg, monkeypatch):
-    cfg(OPENAI_API_KEY="k")
+    cfg(OPENAI_API_KEY="k", AI_IMAGE_PROVIDER="openai")
     add_prices({"openai:gpt-image-2.5-sunburst": price(images_medium=8000)})
     monkeypatch.setattr(httpx, "post", _image_response(400, {"error": {"code": "moderation_blocked"}}))
     user = make_user(credits=100)
@@ -539,11 +543,107 @@ def test_google_video_job_end_to_end_with_credits(app, make_user, cfg, google):
     assert user.get("/api/me/credits").get_json()["account"]["balance"] == 140
 
 
+# ---- Google images (SDK client mocked; responses built with the real SDK types) -------------------
+
+def gemini_response(parts=None, finish_reason="STOP", block_reason=None):
+    from google.genai import types as gt
+
+    return gt.GenerateContentResponse(
+        candidates=[gt.Candidate(content=gt.Content(role="model", parts=parts or []), finish_reason=finish_reason)],
+        prompt_feedback=gt.GenerateContentResponsePromptFeedback(block_reason=block_reason) if block_reason else None,
+        usage_metadata=gt.GenerateContentResponseUsageMetadata(prompt_token_count=12, candidates_token_count=1120))
+
+
+def image_part(data=PNG, thought=None):
+    from google.genai import types as gt
+
+    return gt.Part(inline_data=gt.Blob(data=data, mime_type="image/png"), thought=thought)
+
+
+def image_ctx(params):
+    return JobContext(job_id=uuid.uuid4(), model="gemini-image-test", params=params, provider_job_id=None,
+                      load_asset=None)
+
+
+@pytest.fixture()
+def google_images(google, cfg):
+    cfg(GOOGLE_IMAGE_MODELS=["gemini-image-test"])
+    google.image_responses = []
+
+    def generate_content(**kwargs):
+        google.calls.append(("generate_content", kwargs))
+        return google.image_responses.pop(0)
+
+    google.models.generate_content = generate_content
+    return google
+
+
+def test_google_image_request_and_result(google_images):
+    adapter = GoogleVideoAdapter()
+    spec = adapter.get_model("gemini-image-test")
+    assert spec.kind == GenerationKind.IMAGE and adapter.default_model(GenerationKind.IMAGE).id == spec.id
+    params = adapter.validate(spec, {"prompt": "A red fox", "aspect_ratio": "16:9", "image_size": "2K"})
+    assert adapter.estimate_usage(spec, params) == {"images_2k": 1}
+    # A draft ("thought") image comes first; only the final image is kept.
+    google_images.image_responses = [gemini_response([image_part(b"draft", thought=True), image_part()])]
+    outcome = adapter.submit(image_ctx(params))
+    _, sent = google_images.calls[-1]
+    assert sent["model"] == "gemini-image-test" and sent["contents"] == "A red fox"
+    assert sent["config"].response_modalities == ["IMAGE"]
+    assert (sent["config"].image_config.aspect_ratio, sent["config"].image_config.image_size) == ("16:9", "2K")
+    assert outcome.status == "completed" and outcome.outputs[0].data == PNG
+    assert outcome.outputs[0].mime_type == "image/png" and outcome.usage == {"images_2k": 1}
+    assert outcome.result["provider_reported"]["usage_metadata"]["candidates_token_count"] == 1120
+    with pytest.raises(Exception):
+        adapter.validate(spec, {"prompt": "x", "image_size": "8K"})
+
+
+def test_google_image_refusals_and_empty_results(google_images):
+    adapter = GoogleVideoAdapter()
+    params = adapter.validate(adapter.get_model("gemini-image-test"), {"prompt": "x"})
+    ctx = image_ctx(params)
+    google_images.image_responses = [gemini_response(block_reason="SAFETY"),
+                                     gemini_response(finish_reason="IMAGE_SAFETY"),
+                                     gemini_response(finish_reason="NO_IMAGE"),
+                                     gemini_response([image_part(b"draft", thought=True)])]  # a draft only
+    for expected in ("content_refused", "content_refused", "empty_result", "empty_result"):
+        with pytest.raises(ProviderError) as err:
+            adapter.submit(ctx)
+        assert err.value.code == expected
+
+
+def test_google_models_command_lists_image_and_veo_models(app, cfg, monkeypatch):
+    cfg(GEMINI_API_KEY="g")
+    listed = [pytypes.SimpleNamespace(name=f"models/{m}") for m in
+              ("gemini-image-test", "veo-test-model", "gemini-text-only", "gemini-image-test")]
+    fake = pytypes.SimpleNamespace(models=pytypes.SimpleNamespace(list=lambda: iter(listed)))
+    monkeypatch.setattr(GoogleVideoAdapter, "_client", lambda self: fake)
+    runner = app.test_cli_runner()
+    with app.app_context():  # the real `flask` command provides this
+        result = runner.invoke(args=["aszda", "google-models"])
+        assert result.exit_code == 0 and result.output.split() == ["gemini-image-test", "veo-test-model"]
+        cfg(GEMINI_API_KEY="")
+        assert runner.invoke(args=["aszda", "google-models"]).exit_code != 0
+
+
+def test_google_image_job_end_to_end_with_credits(app, make_user, google_images):
+    add_prices({"google:gemini-image-test": price(images_1k=9000, images_2k=14000, images_4k=30000)})
+    google_images.image_responses = [gemini_response([image_part()])]
+    user = make_user(credits=100)
+    # Images go to Google by default.
+    job = user.post("/api/generation-jobs", headers=idem(), json={
+        "kind": "image", "params": {"prompt": "A red fox"}}).get_json()["job"]
+    job = user.get(f"/api/generation-jobs/{job['id']}").get_json()["job"]
+    assert job["status"] == "completed" and job["provider"] == "google" and job["credits_charged"] == 9
+    assert user.get("/api/me/credits").get_json()["account"]["balance"] == 91
+
+
 # ---- AI Film Director ------------------------------------------------------------------------------
 
 @pytest.fixture()
 def director_setup(app, cfg, monkeypatch):
-    cfg(ANTHROPIC_API_KEY="k", OPENAI_API_KEY="k", AI_VIDEO_PROVIDER="fake-video", AI_VIDEO_FALLBACKS=[])
+    cfg(ANTHROPIC_API_KEY="k", OPENAI_API_KEY="k", AI_IMAGE_PROVIDER="openai", AI_VIDEO_PROVIDER="fake-video",
+        AI_VIDEO_FALLBACKS=[])
     add_prices({"anthropic:claude-opus-5-5": price(input_tokens=1, output_tokens=5),
                 "openai:gpt-image-2.5-sunburst": price(images_medium=8000),
                 "openai:gpt-4o-mini-tts": pricing.ModelPrice(credits_per_1000={"characters": 8}, minimum_credits=2)})

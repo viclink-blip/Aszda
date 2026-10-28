@@ -143,12 +143,15 @@ class BaseConfig:
     # Veo models to offer. No default: check availability first (docs/PROVIDERS.md).
     GOOGLE_VIDEO_MODELS = _list("ASZDA_GOOGLE_VIDEO_MODELS", "")
     GOOGLE_VIDEO_MODEL = os.environ.get("ASZDA_GOOGLE_VIDEO_MODEL", "")
+    # Gemini image models offered (IDs are not built in), and the default one.
+    GOOGLE_IMAGE_MODELS = _list("ASZDA_GOOGLE_IMAGE_MODELS", "")
+    GOOGLE_IMAGE_MODEL = os.environ.get("ASZDA_GOOGLE_IMAGE_MODEL", "")
 
     # Which provider handles each kind of work when the user does not pick one, and which
     # others may be used instead if it is not ready (see app/services/orchestrator.py).
     AI_TEXT_PROVIDER = os.environ.get("ASZDA_AI_TEXT_PROVIDER", "anthropic")
     AI_TEXT_FALLBACKS = _list("ASZDA_AI_TEXT_FALLBACKS", "")
-    AI_IMAGE_PROVIDER = os.environ.get("ASZDA_AI_IMAGE_PROVIDER", "openai")
+    AI_IMAGE_PROVIDER = os.environ.get("ASZDA_AI_IMAGE_PROVIDER", "google")
     AI_IMAGE_FALLBACKS = _list("ASZDA_AI_IMAGE_FALLBACKS", "")
     AI_VIDEO_PROVIDER = os.environ.get("ASZDA_AI_VIDEO_PROVIDER", "runway")
     AI_VIDEO_FALLBACKS = _list("ASZDA_AI_VIDEO_FALLBACKS", "google")
@@ -217,6 +220,7 @@ class TestingConfig(BaseConfig):
     GEMINI_API_KEY = ""
     GOOGLE_USE_VERTEXAI = False
     GOOGLE_VIDEO_MODELS: list[str] = []
+    GOOGLE_IMAGE_MODELS: list[str] = []
     PRICING_FILE = ""
     SIGNUP_CREDIT_GRANT = 0  # tests that need it switch it on
     PROVIDER_POLL_INTERVAL_SECONDS = 0

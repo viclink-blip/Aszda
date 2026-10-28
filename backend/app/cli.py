@@ -132,6 +132,26 @@ def register_cli(app: Flask) -> None:
             else:
                 click.echo(f"{adapter.name:<10} FAILED  {last['last_error']}")
 
+    @group.command("google-models")
+    def google_models() -> None:
+        """List the Google image and Veo model IDs your Google credential can use (nothing is
+        generated). Put the ones you want in ASZDA_GOOGLE_IMAGE_MODELS / ASZDA_GOOGLE_VIDEO_MODELS."""
+        from flask import current_app
+
+        from app.providers.base import ProviderError
+        from app.providers.google_video import GoogleVideoAdapter
+
+        if not current_app.config.get("GEMINI_API_KEY") and not current_app.config.get("GOOGLE_USE_VERTEXAI"):
+            raise click.ClickException("GEMINI_API_KEY is not set.")
+        try:
+            models = GoogleVideoAdapter().list_media_models()
+        except ProviderError as exc:
+            raise click.ClickException(exc.message) from exc
+        if not models:
+            click.echo("Google listed no image or Veo models for this credential.")
+        for model_id in models:
+            click.echo(model_id)
+
     @group.command("paystack-check")
     @click.option("--try-usd", is_flag=True,
                   help="Ask Paystack to start (not charge) a $2.00 USD test transaction to see if USD is enabled.")

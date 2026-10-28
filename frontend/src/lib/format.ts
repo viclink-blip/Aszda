@@ -79,7 +79,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
   anthropic: "Anthropic Claude",
   openai: "OpenAI",
   runway: "Runway",
-  google: "Google Veo",
+  google: "Google",
 };
 
 export function providerLabel(name: string): string {
