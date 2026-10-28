@@ -1,14 +1,12 @@
+import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 
-/** The ASZDA mark: a frame with a rising "A" — a lens/aperture read as a letter. */
+/** The ASZDA Studio logo exactly as supplied (public/brand/aszda-logo.png, 303×317). */
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 32 32" className={cn("h-8 w-8", className)} aria-hidden focusable="false">
-      <rect x="1" y="1" width="30" height="30" rx="8" className="fill-fg" />
-      <path d="M16 7.5 24.5 24h-4.1L16 15.2 11.6 24H7.5L16 7.5Z" className="fill-bg" />
-      <rect x="13.2" y="19.6" width="5.6" height="2.6" rx="1" className="fill-accent" />
-    </svg>
+    <Image src="/brand/aszda-logo.png" alt="" width={303} height={317} priority
+      className={cn("h-10 w-auto rounded-[22%]", className)} aria-hidden />
   );
 }
 
