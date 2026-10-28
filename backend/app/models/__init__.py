@@ -12,6 +12,7 @@ from app.models.billing import (
 )
 from app.models.costs import ProviderCost
 from app.models.credits import CreditAccount, CreditTransaction, CreditTxType, SignupGrantClaim
+from app.models.film import ACTIVE_FILM_STATUSES, FilmProduction, FilmStatus
 from app.models.generation import (
     ACTIVE_STATUSES,
     FINAL_STATUSES,
@@ -33,7 +34,8 @@ from app.models.user import (
 )
 
 __all__ = [
-    "ACTIVE_STATUSES", "FINAL_STATUSES", "Asset", "AssetKind", "AssetSource", "AuditEvent",
+    "ACTIVE_FILM_STATUSES", "ACTIVE_STATUSES", "FINAL_STATUSES", "FilmProduction", "FilmStatus",
+    "Asset", "AssetKind", "AssetSource", "AuditEvent",
     "AuthSession", "BillingItemSetting", "Character", "CreditAccount", "CreditTransaction", "CreditTxType",
     "GenerationJob", "GenerationKind", "GenerationPrice", "JobStatus", "Payment", "PaymentEvent", "PaymentKind",
     "PaymentStatus", "Project", "ProviderCost", "ProviderStatus", "SignupGrantClaim", "Subscription",

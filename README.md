@@ -35,7 +35,8 @@ own models can be added later without rewriting the app.
 | **AI Film Director**: Claude plans characters and scenes (structured output), then each scene's image, video and voice are generated | Implemented and tested with mocked providers |
 | Pricing in USD (plans $0–$99/month, credit packages $5–$50) with labelled KES reference amounts | Implemented and tested |
 | Paystack checkout, verification, webhooks, subscriptions, receipts | Implemented and tested with a mocked Paystack; **switched off** until USD is confirmed for the Paystack account and credit amounts are decided ([docs/BILLING.md](docs/BILLING.md)) |
-| Final video assembly/export | **Not implemented yet** (planned) |
+| **Make my film**: one click plans the story, makes every scene's image, video and voice, and joins them into one MP4 (ffmpeg) | Implemented and tested (mocked providers; real ffmpeg join; browser run with simulated providers) |
+| Music, transitions, trimming | **Not implemented yet** (planned) |
 
 No real generation has been run against any provider yet (no keys were available in the build
 environment). "Implemented" means code plus automated tests with mocked providers; see the status

@@ -42,6 +42,10 @@ Base path: `/api`. JSON in, JSON out. The complete machine-readable spec is serv
 | `POST /generation-jobs/quote` | Validate + estimate credits without running |
 | `POST /generation-jobs` · `GET /generation-jobs` · `GET /generation-jobs/{id}` | Start / list / status |
 | `POST /generation-jobs/{id}/cancel` · `/retry` | Cancel (refund) / retry as a new job |
+| `POST /projects/{id}/director/plan` · `/apply` · `/scenes/{scene}/generate` | AI Film Director, step by step: plan, add the plan to the project, make one scene's image/video/voice |
+| `POST /projects/{id}/director/films` | **Make my film**: plan, then every scene's image, video and voice, joined into one MP4 (needs `Idempotency-Key`) |
+| `GET /projects/{id}/director/films/current` | The project's latest film and its progress |
+| `POST /projects/{id}/director/films/{film}/continue` · `/cancel` | Continue a film that waited for credits · stop starting new steps |
 | `GET /admin/overview`, `/admin/users`, `/admin/jobs`, `/admin/usage`, `/admin/providers`, `/admin/audit-events`, `/admin/credit-transactions` | Admin views |
 | `PATCH /admin/users/{id}` · `POST /admin/users/{id}/credits` · `GET /admin/users/{id}/credits` | Admin actions (audited) |
 

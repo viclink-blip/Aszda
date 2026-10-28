@@ -485,6 +485,7 @@ def _complete(job_id: uuid.UUID, outcome: ProviderOutcome) -> None:
     _record_provider_cost(job, "completed", outcome.usage or job.usage.get("estimate") or {},
                           reported=(outcome.result or {}).get("provider_reported"), absorbed=False)
     db.session.commit()
+    _notify_film(job)
 
 
 def _handle_error(job_id: uuid.UUID, exc: ProviderError, *, may_retry: bool) -> None:
@@ -529,6 +530,7 @@ def _fail(job: GenerationJob, exc: ProviderError) -> None:
     elif exc.usage:
         _record_provider_cost(job, "failed_billed", exc.usage, reported=exc.provider_reported, absorbed=False)
     db.session.commit()
+    _notify_film(job)
 
 
 def _settle(job: GenerationJob, charged: int, *, success: bool) -> None:
@@ -597,7 +599,18 @@ def cancel_job(user: User, job_id: uuid.UUID) -> GenerationJob:
     job.completed_at = now()
     _settle(job, 0, success=False)
     db.session.commit()
+    _notify_film(job)
     return job
+
+
+def _notify_film(job: GenerationJob) -> None:
+    """Let an automatic film that this job belongs to move on. Never fails the job itself."""
+    from app.services import film_service
+
+    try:
+        film_service.job_finished(job)
+    except Exception:  # noqa: BLE001 - the job is already settled; the film's beat catches up
+        log.exception("Could not wake the film for job %s", job.id)
 
 
 def retry_job(user: User, job_id: uuid.UUID, idempotency_key: str) -> tuple[GenerationJob, bool]:

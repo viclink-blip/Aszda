@@ -60,7 +60,7 @@ export const STUDIOS: Studio[] = [
     name: "AI Film Director",
     href: "/app/director",
     icon: Clapperboard,
-    summary: "Claude plans your film's characters and scenes; then each scene's image, video and voice are generated.",
+    summary: "One click: Claude plans your film, then every scene's picture, video and voice are made and joined into one video.",
     provider: "Anthropic Claude, then the image, video and voice providers",
   },
 ];
@@ -74,9 +74,9 @@ export interface PlannedFeature {
 /** Features that do NOT exist yet. Always labelled "Planned" in the UI. */
 export const PLANNED: PlannedFeature[] = [
   {
-    name: "Export and assembly",
+    name: "Music and editing",
     icon: Scissors,
-    summary: "Stitch scenes, voice and music into one exported film.",
+    summary: "Background music, transitions and trimming scenes, inside the studio.",
   },
   {
     name: "Voice cloning",

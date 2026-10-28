@@ -38,10 +38,10 @@ const STUDIO_DETAILS: Record<Studio["slug"], string[]> = {
     "No voice cloning: only the provider's built-in voices",
   ],
   director: [
+    "Make my film: one click plans the scenes, makes every picture, video and voice, and joins them into one video",
     "Claude plans the title, characters and 3 to 12 scenes from your idea",
-    "You review the plan before it is added to your project's storyboard",
-    "Generate each scene's key frame, video and voice with one click each",
-    "Not yet: joining the scenes into one exported film",
+    "Wide 16:9 or tall 9:16, for YouTube or for TikTok, Reels and Status",
+    "Or review the plan yourself and make each scene with one click each",
   ],
 };
 

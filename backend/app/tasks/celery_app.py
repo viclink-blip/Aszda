@@ -33,6 +33,8 @@ def init_celery(app: Flask) -> Celery:
         # Periodic housekeeping (needs one process running Celery beat, e.g. `worker -B`).
         beat_schedule={
             "reap-stuck-jobs": {"task": "aszda.reap_stuck_jobs", "schedule": 300.0},
+            # Automatic films normally move on when a job finishes; this catches anything missed.
+            "advance-films": {"task": "aszda.advance_active_films", "schedule": 60.0},
             "expire-subscriptions": {"task": "aszda.expire_subscriptions", "schedule": 3600.0},
         },
     )

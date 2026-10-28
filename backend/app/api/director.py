@@ -10,11 +10,12 @@ from flask import Blueprint, jsonify
 from pydantic import Field, field_validator
 
 from app.api.common import doc, idempotency_key, parse_body
+from app.errors import NotFound
 from app.extensions import db, limiter
 from app.schemas.requests import Strict
 from app.schemas.serializers import job_out, scene_out
 from app.security.auth import current_user, login_required
-from app.services import director_service, project_service
+from app.services import director_service, film_service, project_service
 
 bp = Blueprint("director", __name__, url_prefix="/api/projects/<uuid:project_id>/director")
 
@@ -85,3 +86,65 @@ def generate(project_id: uuid.UUID, scene_id: uuid.UUID):
         user, project, scene_id, kinds=list(data.kinds), providers=dict(data.providers),
         orientation=data.orientation, idempotency_key=idempotency_key())
     return jsonify({"results": results}), 202
+
+
+# ---- Automatic films ---------------------------------------------------------------------------
+
+class FilmIn(Strict):
+    idea: str = Field(min_length=10, max_length=10000)
+    orientation: Literal["landscape", "portrait"] = "landscape"
+    effort: Literal["low", "medium", "high"] = "medium"
+
+
+def _film_in_project(project_id: uuid.UUID, film_id: uuid.UUID):
+    user = current_user()
+    project_service.get_owned_project(user, project_id)
+    film = film_service.get_owned(user, film_id)
+    if film.project_id != project_id:
+        raise NotFound("Film not found.")
+    return user, film
+
+
+@bp.post("/films")
+@doc("Make a whole film automatically: plan the scenes, then make every image, video and voice and "
+     "join them into one video. Every step is an ordinary job that costs credits; the film waits if "
+     "the balance does not cover it. Requires an Idempotency-Key header", tags=["Director"], body=FilmIn)
+@login_required
+@limiter.limit("5 per minute")
+def start_film(project_id: uuid.UUID):
+    user = current_user()
+    project = project_service.get_owned_project(user, project_id)
+    data = parse_body(FilmIn)
+    film, created = film_service.start_film(user, project, idea=data.idea, orientation=data.orientation,
+                                            effort=data.effort, idempotency_key=idempotency_key())
+    db.session.refresh(film)
+    return jsonify({"film": film_service.film_out(film)}), 201 if created else 200
+
+
+@bp.get("/films/current")
+@doc("The project's latest automatic film and its progress (null if there is none)", tags=["Director"])
+@login_required
+def current_film(project_id: uuid.UUID):
+    project_service.get_owned_project(current_user(), project_id)
+    film = film_service.latest_for_project(project_id)
+    return jsonify({"film": film_service.film_out(film) if film else None})
+
+
+@bp.post("/films/<uuid:film_id>/continue")
+@doc("Continue a film that was waiting for credits", tags=["Director"])
+@login_required
+def continue_film(project_id: uuid.UUID, film_id: uuid.UUID):
+    user, film = _film_in_project(project_id, film_id)
+    film = film_service.resume(user, film)
+    db.session.refresh(film)
+    return jsonify({"film": film_service.film_out(film)})
+
+
+@bp.post("/films/<uuid:film_id>/cancel")
+@doc("Stop a film: no new steps start. Steps already running finish and are charged as usual",
+     tags=["Director"])
+@login_required
+def cancel_film(project_id: uuid.UUID, film_id: uuid.UUID):
+    user, film = _film_in_project(project_id, film_id)
+    film = film_service.cancel(user, film)
+    return jsonify({"film": film_service.film_out(film)})

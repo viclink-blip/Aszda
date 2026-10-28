@@ -3,8 +3,9 @@
 import { Clapperboard, Image as ImageIcon, Film, AudioLines } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCredits } from "@/components/app/credits-context";
+import { FilmProgress } from "@/components/director/film-progress";
 import { JobResult } from "@/components/generation/job-result";
 import { ProjectSelect } from "@/components/generation/project-select";
 import { Badge, StatusBadge } from "@/components/ui/badge";
@@ -22,7 +23,7 @@ import { useApi } from "@/hooks/use-api";
 import { useJobPolling } from "@/hooks/use-job-polling";
 import { api, errorMessage, newIdempotencyKey } from "@/lib/api";
 import { formatRelative, providerLabel } from "@/lib/format";
-import type { CapabilityRoute, Job, Scene, SceneGenerationResult } from "@/lib/types";
+import type { CapabilityRoute, Film as FilmRecord, Job, Scene, SceneGenerationResult } from "@/lib/types";
 
 const IDEA_MAX = 10000;
 const DRAFT_KEY = "aszda-director-idea:";
@@ -247,6 +248,30 @@ export function DirectorView() {
   }
   const routing = caps?.capabilities;
   const planReady = routing?.find((r) => r.kind === "text")?.ready != null;
+  const filmReady = planReady && routing?.find((r) => r.kind === "video")?.ready != null;
+  const formRef = useRef<HTMLFormElement>(null);
+  const [orientation, setOrientation] = useState<"landscape" | "portrait">("landscape");
+  const [starting, setStarting] = useState(false);
+  const [startedFilm, setStartedFilm] = useState<FilmRecord | null>(null);
+
+  // One click: plan, then every scene's picture, video and voice, joined into one film.
+  const makeFilm = async () => {
+    if (!projectId) return setFormError("Choose a project first.");
+    if (!formRef.current?.reportValidity()) return;
+    setStarting(true);
+    setFormError(null);
+    try {
+      const { film } = await api.director.startFilm(projectId, { idea, orientation }, newIdempotencyKey());
+      setStartedFilm(film);
+      toast.success("Your film has started", "ASZDA is planning it now. You can watch the progress below.");
+      refresh();
+      document.getElementById("film-progress")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (err) {
+      setFormError(errorMessage(err));
+    } finally {
+      setStarting(false);
+    }
+  };
 
   const plan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -283,18 +308,17 @@ export function DirectorView() {
 
   return (
     <>
-      <PageHeader title="AI Film Director" description="Describe a film. Claude plans the characters and scenes; you review the plan, add it to a project, then generate each scene." />
+      <PageHeader title="AI Film Director" description="Tell your story and click Make my film. ASZDA plans the scenes, makes every picture, video and voice, and joins them into one film." />
       <Notice tone="info" className="mb-6">
-        Each step is a normal generation that costs credits: the plan (text), and each scene&apos;s image, video and
-        voice. Credits are reserved before a job starts and unused credits are returned. Joining the clips into one
-        exported film is not available yet — download each scene&apos;s files from the project.
+        Every step costs credits: the plan, and each scene&apos;s picture, video and voice. After planning, ASZDA
+        checks that your balance covers the whole film and waits for you if it does not. Steps that fail are refunded.
       </Notice>
       <ProviderStrip routing={routing} />
       <div className="flex flex-col gap-6">
-        <Card>
-          <CardHeader title="1. Plan the film" />
+        <Card id="make-film">
+          <CardHeader title="1. Your story" />
           <CardBody>
-            <form onSubmit={plan} className="flex flex-col gap-4">
+            <form ref={formRef} onSubmit={plan} className="flex flex-col gap-4">
               <ProjectSelect value={projectId} onChange={setProjectId} required allowCreate help="The plan, scenes and generated files are saved to this project." />
               {loadError && <Notice tone="warning">Your script could not be loaded ({loadError}). Choose it below or paste it.</Notice>}
               {!idea && <ProjectScripts scripts={scripts} onUse={(j) => pickScript(scriptText(j))} />}
@@ -307,6 +331,14 @@ export function DirectorView() {
               <Field label="Your idea" required help="Story, audience, tone, length and anything that must appear.">
                 {(p) => <Textarea {...p} rows={5} value={idea} minLength={10} maxLength={10000} required onChange={(e) => setIdea(e.target.value)} />}
               </Field>
+              <Field label="Shape" help="Use the same shape as where you will share the film.">
+                {(p) => (
+                  <Select {...p} value={orientation} onChange={(e) => setOrientation(e.target.value as typeof orientation)}>
+                    <option value="landscape">Wide 16:9 (YouTube, TV)</option>
+                    <option value="portrait">Tall 9:16 (TikTok, Reels, WhatsApp Status)</option>
+                  </Select>
+                )}
+              </Field>
               <Field label="Planning effort">
                 {(p) => (
                   <Select {...p} value={effort} onChange={(e) => setEffort(e.target.value as typeof effort)}>
@@ -318,10 +350,27 @@ export function DirectorView() {
               </Field>
               <FormError message={formError} />
               {!planReady && routing && <Notice tone="warning">No text provider is set up yet, so plans cannot be created.</Notice>}
-              <div><Button type="submit" loading={submitting} disabled={!planReady}>Create plan</Button></div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="button" size="lg" loading={starting} disabled={!filmReady || submitting} onClick={makeFilm}>
+                  <Clapperboard className="h-5 w-5" aria-hidden /> Make my film
+                </Button>
+                <Button type="submit" variant="outline" loading={submitting} disabled={!planReady || starting}>Only create the plan</Button>
+              </div>
+              <p className="text-xs text-subtle">
+                <b className="font-medium text-muted">Make my film</b> does every step for you and gives you one video.
+                A 10-scene film costs about 2,500 credits. <b className="font-medium text-muted">Only create the plan</b> lets
+                you review the scenes and make each one yourself.
+              </p>
             </form>
           </CardBody>
         </Card>
+
+        {projectId && (
+          <div id="film-progress" className="scroll-mt-20">
+            <FilmProgress key={projectId} projectId={projectId} startedFilm={startedFilm}
+              onChanged={() => setVersion((v) => v + 1)} />
+          </div>
+        )}
 
         {job && (
           <Card>

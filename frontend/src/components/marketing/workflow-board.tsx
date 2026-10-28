@@ -8,14 +8,14 @@ import { cn } from "@/lib/cn";
  * exist today and which are planned.
  */
 
-const STEPS = [
+const STEPS: { n: string; title: string; detail: string; status: "ready" | "planned" }[] = [
   { n: "01", title: "Idea", detail: "Your story, ad or concept", status: "ready" },
   { n: "02", title: "Script", detail: "Concept, script, scene breakdown · Claude", status: "ready" },
   { n: "03", title: "Characters & storyboard", detail: "Project workspace", status: "ready" },
   { n: "04", title: "Video & animation", detail: "Text or image to video · Runway", status: "ready" },
   { n: "05", title: "Voice", detail: "Narration and dialogue · OpenAI", status: "ready" },
-  { n: "06", title: "Assembly & export", detail: "Edit scenes into one film", status: "planned" },
-] as const;
+  { n: "06", title: "Your finished film", detail: "Scenes and voices joined into one video", status: "ready" },
+];
 
 export function WorkflowBoard() {
   return (

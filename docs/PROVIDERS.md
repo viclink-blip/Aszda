@@ -184,6 +184,24 @@ Details:
 - Safety-filtered results (`rai_media_filtered_count`) fail as `content_refused` with a full refund. Google does not document charging for them, so no ASZDA cost is assumed.
 - Not implemented: cancelling a running operation, video extension, reference images, last-frame interpolation, 4k.
 
+## Make my film (automatic films)
+
+`POST /api/projects/{id}/director/films` runs the whole Director in the background
+(`app/services/film_service.py`):
+
+1. Claude plans the film; the plan is added to the project.
+2. ASZDA estimates every remaining step and checks the balance. If it is not enough, the film
+   waits (`waiting_for_credits`) until the user adds credits and clicks Continue.
+3. For every scene: the image, then a video that starts from that image, and the voice. Each is
+   an ordinary generation job (credits reserved first, refunded on failure); the usual limit of
+   running jobs per user applies, so steps start as earlier ones finish.
+4. `app/services/film_assembly.py` joins the clips and voices with ffmpeg into one MP4 (16:9
+   1280×720 or 9:16 720×1280, 24 fps, H.264 + AAC) and saves it to the project. Joining costs no
+   credits. If a voice is longer than its clip, the last frame is held.
+
+The film moves on when any of its jobs finishes, and Celery beat checks unfinished films every
+minute (`advance-films`), so a lost wake-up only delays it. ffmpeg is installed in the API image.
+
 ## Checking providers from the command line (free)
 
 ```bash

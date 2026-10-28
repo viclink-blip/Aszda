@@ -296,6 +296,36 @@ export interface SceneGenerationResult {
   error?: { code: string; message: string };
 }
 
+export type FilmStatus = "planning" | "waiting_for_credits" | "producing" | "assembling" | "completed" | "failed" | "cancelled";
+export type FilmStepState = "waiting" | "running" | "done" | "failed" | "skipped";
+
+export interface FilmStep {
+  state: FilmStepState;
+  job_id?: string;
+  asset_id?: string;
+  message?: string;
+}
+
+/** An automatic film: plan, then every scene's image, video and voice, joined into one video. */
+export interface Film {
+  id: string;
+  project_id: string;
+  status: FilmStatus;
+  orientation: "landscape" | "portrait";
+  plan_job_id: string | null;
+  plan_status: JobStatus | null;
+  estimated_credits: number | null;
+  credits_charged: number;
+  scenes: { scene_id: string; title: string; image: FilmStep; video: FilmStep; voice: FilmStep }[];
+  counts: Record<"image" | "video" | "voice", { done: number; total: number }>;
+  film_asset: Asset | null;
+  error: { code: string; message: string } | null;
+  created_at: string | null;
+  completed_at: string | null;
+}
+
+export const ACTIVE_FILM_STATUSES: FilmStatus[] = ["planning", "waiting_for_credits", "producing", "assembling"];
+
 // ---- Admin --------------------------------------------------------------------
 
 export interface AdminOverview {
