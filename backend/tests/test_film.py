@@ -243,3 +243,49 @@ def test_assets_of_a_film_are_deleted_with_the_project(app, make_user, film_setu
     with app.app_context():
         assert db.session.query(FilmProduction).count() == 0
         assert db.session.query(Asset).filter(Asset.project_id == uuid.UUID(pid)).count() == 0
+
+
+def plan_and_apply(user, pid) -> list[dict]:
+    """The step-by-step Director: a plan added to the project (as with an earlier script)."""
+    job = user.post(f"/api/projects/{pid}/director/plan", headers=idem(),
+                    json={"idea": "A fox who sells shoes at the market"}).get_json()["job"]
+    return user.post(f"/api/projects/{pid}/director/apply", json={"job_id": job["id"]}).get_json()["scenes"]
+
+
+def test_a_film_from_the_projects_existing_scenes(app, make_user, film_setup):
+    user = make_user(credits=2000)
+    pid = new_project(user)
+    scenes = plan_and_apply(user, pid)
+    # The first scene already has its picture (made earlier, step by step).
+    market = scenes[0]["id"]
+    made = user.post(f"/api/projects/{pid}/director/scenes/{market}/generate", headers=idem(),
+                     json={"kinds": ["image"]}).get_json()["results"][0]
+    with app.app_context():
+        plans_before = db.session.query(GenerationJob).filter(GenerationJob.kind == "text").count()
+    before = balance(user)
+
+    response = user.post(f"/api/projects/{pid}/director/films", headers=idem(), json={"from_scenes": True})
+    assert response.status_code == 201, response.get_json()
+    film = current(user, pid)
+    assert film["status"] == "completed" and film["plan_job_id"] is None
+    # No new plan and no new scenes: the film uses the two scenes the project had.
+    assert [s["scene_id"] for s in film["scenes"]] == [s["id"] for s in scenes]
+    with app.app_context():
+        assert db.session.query(GenerationJob).filter(GenerationJob.kind == "text").count() == plans_before
+    project = user.get(f"/api/projects/{pid}").get_json()
+    assert len(project["scenes"]) == 2
+    # The existing picture is reused (not made and paid for again); the other scene gets one.
+    assert film["scenes"][0]["image"]["job_id"] == made["job_id"]
+    assert film["scenes"][1]["image"]["state"] == "done" and film["scenes"][1]["image"]["job_id"] != made["job_id"]
+    assert film["film_asset"] is not None
+    assert balance(user) == before - (film["credits_charged"] - 8)  # the reused picture was paid before
+
+
+def test_a_film_from_scenes_needs_scenes(app, make_user, film_setup):
+    user = make_user(credits=2000)
+    pid = new_project(user)
+    response = user.post(f"/api/projects/{pid}/director/films", headers=idem(), json={"from_scenes": True})
+    assert response.status_code == 409 and response.get_json()["error"]["code"] == "no_scenes"
+    # Without from_scenes, a story is required.
+    missing = user.post(f"/api/projects/{pid}/director/films", headers=idem(), json={})
+    assert missing.status_code == 422

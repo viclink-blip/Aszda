@@ -7,7 +7,7 @@ import uuid
 from typing import Literal
 
 from flask import Blueprint, jsonify
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.api.common import doc, idempotency_key, parse_body
 from app.errors import NotFound
@@ -91,9 +91,17 @@ def generate(project_id: uuid.UUID, scene_id: uuid.UUID):
 # ---- Automatic films ---------------------------------------------------------------------------
 
 class FilmIn(Strict):
-    idea: str = Field(min_length=10, max_length=10000)
+    idea: str | None = Field(default=None, min_length=10, max_length=10000)
+    # True: use the scenes the project already has (no new plan) and reuse what they already have.
+    from_scenes: bool = False
     orientation: Literal["landscape", "portrait"] = "landscape"
     effort: Literal["low", "medium", "high"] = "medium"
+
+    @model_validator(mode="after")
+    def idea_or_scenes(self):
+        if not self.from_scenes and not self.idea:
+            raise ValueError("Describe your story, or make the film from the project's scenes.")
+        return self
 
 
 def _film_in_project(project_id: uuid.UUID, film_id: uuid.UUID):
@@ -106,17 +114,22 @@ def _film_in_project(project_id: uuid.UUID, film_id: uuid.UUID):
 
 
 @bp.post("/films")
-@doc("Make a whole film automatically: plan the scenes, then make every image, video and voice and "
-     "join them into one video. Every step is an ordinary job that costs credits; the film waits if "
-     "the balance does not cover it. Requires an Idempotency-Key header", tags=["Director"], body=FilmIn)
+@doc("Make a whole film automatically: plan the scenes (or, with from_scenes, use the project's existing "
+     "scenes and whatever they already have), then make every image, video and voice and join them into "
+     "one video. Every step is an ordinary job that costs credits; the film waits if the balance does not "
+     "cover it. Requires an Idempotency-Key header", tags=["Director"], body=FilmIn)
 @login_required
 @limiter.limit("5 per minute")
 def start_film(project_id: uuid.UUID):
     user = current_user()
     project = project_service.get_owned_project(user, project_id)
     data = parse_body(FilmIn)
-    film, created = film_service.start_film(user, project, idea=data.idea, orientation=data.orientation,
-                                            effort=data.effort, idempotency_key=idempotency_key())
+    if data.from_scenes:
+        film, created = film_service.start_film_from_scenes(user, project, orientation=data.orientation,
+                                                            idempotency_key=idempotency_key())
+    else:
+        film, created = film_service.start_film(user, project, idea=data.idea, orientation=data.orientation,
+                                                effort=data.effort, idempotency_key=idempotency_key())
     db.session.refresh(film)
     return jsonify({"film": film_service.film_out(film)}), 201 if created else 200
 

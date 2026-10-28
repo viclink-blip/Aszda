@@ -366,7 +366,8 @@ export const api = {
       data: { kinds: ("image" | "video" | "voice")[]; orientation?: "landscape" | "portrait" }, idempotencyKey: string) =>
       post<{ results: SceneGenerationResult[] }>(`/api/projects/${projectId}/director/scenes/${sceneId}/generate`, data,
         { "Idempotency-Key": idempotencyKey }),
-    startFilm: (projectId: string, data: { idea: string; orientation: "landscape" | "portrait" }, idempotencyKey: string) =>
+    startFilm: (projectId: string,
+      data: { idea?: string; from_scenes?: boolean; orientation: "landscape" | "portrait" }, idempotencyKey: string) =>
       post<{ film: Film }>(`/api/projects/${projectId}/director/films`, data, { "Idempotency-Key": idempotencyKey }),
     currentFilm: (projectId: string) => get<{ film: Film | null }>(`/api/projects/${projectId}/director/films/current`),
     continueFilm: (projectId: string, filmId: string) =>

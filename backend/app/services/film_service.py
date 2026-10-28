@@ -68,15 +68,66 @@ def active_film(project_id: uuid.UUID) -> FilmProduction | None:
         FilmProduction.project_id == project_id, FilmProduction.status.in_(ACTIVE_FILM_STATUSES)))
 
 
-def start_film(user: User, project: Project, *, idea: str, orientation: str, effort: str,
-               idempotency_key: str) -> tuple[FilmProduction, bool]:
+def _existing(user: User, project: Project, idempotency_key: str) -> FilmProduction | None:
     existing = db.session.scalar(select(FilmProduction).where(
         FilmProduction.user_id == user.id, FilmProduction.idempotency_key == idempotency_key))
-    if existing is not None:
-        return existing, False
-    if active_film(project.id) is not None:
+    if existing is None and active_film(project.id) is not None:
         raise Conflict("A film is already being made in this project. Wait for it to finish or stop it.",
                        code="film_in_progress")
+    return existing
+
+
+def _entry(scene: Scene, orientation: str, *, reuse: bool) -> dict[str, Any]:
+    """A scene's place in the film. With reuse, pictures, videos and voices this scene already has
+    are used instead of being made (and paid for) again."""
+    entry: dict[str, Any] = {"scene_id": str(scene.id)}
+    skipped: dict[str, str] = {}
+    if not director_service._brief(scene, "voice", orientation)["text"]:
+        skipped["voice"] = "This scene has no narration or dialogue."
+    if reuse:
+        for kind in KINDS:
+            if kind in skipped:
+                continue
+            job_id = db.session.scalar(
+                select(GenerationJob.id).where(
+                    GenerationJob.scene_id == scene.id,
+                    GenerationJob.kind == director_service.SCENE_KINDS[kind],
+                    GenerationJob.status == JobStatus.COMPLETED)
+                .order_by(GenerationJob.completed_at.desc()).limit(1))
+            if job_id is not None:
+                entry[f"{kind}_job_id"] = str(job_id)
+        if "image_job_id" not in entry and scene.preview_asset_id is not None:
+            skipped["image"] = "Uses the scene's existing picture."
+    if skipped:
+        entry["skipped"] = skipped
+    return entry
+
+
+def start_film_from_scenes(user: User, project: Project, *, orientation: str,
+                           idempotency_key: str) -> tuple[FilmProduction, bool]:
+    """Make the film from the scenes the project already has: no new plan, and anything a scene
+    already has (its picture, video or voice) is reused."""
+    existing = _existing(user, project, idempotency_key)
+    if existing is not None:
+        return existing, False
+    scenes = db.session.scalars(select(Scene).where(Scene.project_id == project.id).order_by(Scene.position)).all()
+    if not scenes:
+        raise Conflict("This project has no scenes yet. Plan the film first.", code="no_scenes")
+    film = FilmProduction(user_id=user.id, project_id=project.id, idempotency_key=idempotency_key,
+                          status=FilmStatus.PLANNING, plan_job_id=None,
+                          options={"orientation": orientation, "from_scenes": True},
+                          scenes=[_entry(s, orientation, reuse=True) for s in scenes])
+    db.session.add(film)
+    db.session.commit()
+    schedule(film.id)
+    return film, True
+
+
+def start_film(user: User, project: Project, *, idea: str, orientation: str, effort: str,
+               idempotency_key: str) -> tuple[FilmProduction, bool]:
+    existing = _existing(user, project, idempotency_key)
+    if existing is not None:
+        return existing, False
     plan_job, _ = director_service.start_plan(
         user, project, idea=idea, idempotency_key=f"film:{idempotency_key}:plan"[:128], provider=None,
         model=None, max_output_tokens=16000, effort=effort)
@@ -207,6 +258,8 @@ def _pause(film: FilmProduction, code: str, message: str) -> bool:
 
 
 def _after_plan(film: FilmProduction) -> bool:
+    if film.plan_job_id is None and film.scenes:
+        return _check_budget(film, already_paid=0)  # made from the project's existing scenes
     job = db.session.get(GenerationJob, film.plan_job_id) if film.plan_job_id else None
     if job is None:
         return _fail(film, "plan_missing", "The film plan could not be found.")
@@ -227,22 +280,22 @@ def _after_plan(film: FilmProduction) -> bool:
         else:
             scenes = director_service.apply_plan(user, project, job.id)
         orientation = film.options.get("orientation", "landscape")
-        film.scenes = [
-            # A scene with nothing to say needs no voice: known now, so progress counts are right.
-            {"scene_id": str(s.id), **({} if director_service._brief(s, "voice", orientation)["text"]
-                                        else {"skipped": {"voice": "This scene has no narration or dialogue."}})}
-            for s in scenes]
+        film.scenes = [_entry(s, orientation, reuse=False) for s in scenes]
         db.session.commit()
     if not film.scenes:
         return _fail(film, "plan_empty", "The plan had no scenes.")
+    return _check_budget(film, already_paid=job.credits_charged or 0)
 
+
+def _check_budget(film: FilmProduction, *, already_paid: int) -> bool:
+    user = db.session.get(User, film.user_id)
     estimate, missing = _estimate(user, film)
     if "video" in missing:
         return _fail(film, "no_video_provider", "No video provider is set up, so the film cannot be made.")
-    # The whole film: what the plan cost, plus an upper bound for every remaining step.
-    film.estimated_credits = (job.credits_charged or 0) + estimate
+    # The whole film: what was already paid (the plan), plus an upper bound for every remaining step.
+    film.estimated_credits = already_paid + estimate
     balance = credit_service.get_account(user.id).balance
-    if balance < estimate:  # the plan is already paid for
+    if balance < estimate:  # anything already paid for is not counted again
         return _pause(film, "insufficient_credits",
                       f"The rest of this film needs about {estimate:,} credits and you have {balance:,}. "
                       "Add credits, then click Continue.")
@@ -269,6 +322,8 @@ def _estimate(user: User, film: FilmProduction) -> tuple[int, set[str]]:
             continue
         price = pricing.price_for(chosen.adapter.name, chosen.spec.id)
         for entry in film.scenes:
+            if entry.get(f"{kind}_job_id") or kind in (entry.get("skipped") or {}):
+                continue  # already made, or not needed
             scene = db.session.get(Scene, uuid.UUID(entry["scene_id"]))
             if scene is None:
                 continue

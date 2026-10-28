@@ -164,12 +164,22 @@ function SceneRow({ projectId, scene, routing }: { projectId: string; scene: Sce
   );
 }
 
-function ScenesCard({ projectId, routing, version }: { projectId: string; routing: CapabilityRoute[] | undefined; version: number }) {
+function ScenesCard({ projectId, routing, version, onMakeFilm, making, canMakeFilm }: {
+  projectId: string; routing: CapabilityRoute[] | undefined; version: number;
+  onMakeFilm: () => void; making: boolean; canMakeFilm: boolean;
+}) {
   const { data, error, reload } = useApi(() => api.projects.get(projectId), [projectId, version]);
   if (error && !data) return <ErrorState error={error} onRetry={reload} />;
+  const hasScenes = (data?.scenes.length ?? 0) > 0;
   return (
     <Card>
-      <CardHeader title="Scenes" description="Generate each scene's key frame image, video and voice. Every generation is a normal job that reserves credits first." />
+      <CardHeader title="Scenes"
+        description="Create the whole film in one click: ASZDA makes every missing picture, video and voice, then joins all the scenes into one video. Or make each scene yourself."
+        action={hasScenes ? (
+          <Button size="sm" loading={making} disabled={!canMakeFilm} onClick={onMakeFilm}>
+            <Clapperboard className="h-4 w-4" aria-hidden /> Create the whole film
+          </Button>
+        ) : undefined} />
       {!data ? <div className="p-5"><LoadingRows rows={3} /></div> : data.scenes.length === 0 ? (
         <EmptyState className="m-5" icon={Clapperboard} title="No scenes yet" description="Create a plan above and add it to the project." />
       ) : (
@@ -254,20 +264,25 @@ export function DirectorView() {
   const [starting, setStarting] = useState(false);
   const [startedFilm, setStartedFilm] = useState<FilmRecord | null>(null);
 
-  // One click: plan, then every scene's picture, video and voice, joined into one film.
-  const makeFilm = async () => {
+  // One click: plan (or use the project's scenes), then every scene's picture, video and voice,
+  // joined into one film.
+  const makeFilm = async (fromScenes = false) => {
     if (!projectId) return setFormError("Choose a project first.");
-    if (!formRef.current?.reportValidity()) return;
+    if (!fromScenes && !formRef.current?.reportValidity()) return;
     setStarting(true);
     setFormError(null);
     try {
-      const { film } = await api.director.startFilm(projectId, { idea, orientation }, newIdempotencyKey());
+      const { film } = await api.director.startFilm(projectId,
+        fromScenes ? { from_scenes: true, orientation } : { idea, orientation }, newIdempotencyKey());
       setStartedFilm(film);
-      toast.success("Your film has started", "ASZDA is planning it now. You can watch the progress below.");
+      toast.success("Your film has started", fromScenes
+        ? "ASZDA is making it from your scenes. You can watch the progress below."
+        : "ASZDA is planning it now. You can watch the progress below.");
       refresh();
       document.getElementById("film-progress")?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
-      setFormError(errorMessage(err));
+      if (fromScenes) toast.error("Could not start the film", errorMessage(err));
+      else setFormError(errorMessage(err));
     } finally {
       setStarting(false);
     }
@@ -351,7 +366,7 @@ export function DirectorView() {
               <FormError message={formError} />
               {!planReady && routing && <Notice tone="warning">No text provider is set up yet, so plans cannot be created.</Notice>}
               <div className="flex flex-wrap items-center gap-3">
-                <Button type="button" size="lg" loading={starting} disabled={!filmReady || submitting} onClick={makeFilm}>
+                <Button type="button" size="lg" loading={starting} disabled={!filmReady || submitting} onClick={() => makeFilm()}>
                   <Clapperboard className="h-5 w-5" aria-hidden /> Make my film
                 </Button>
                 <Button type="submit" variant="outline" loading={submitting} disabled={!planReady || starting}>Only create the plan</Button>
@@ -395,7 +410,8 @@ export function DirectorView() {
           </Card>
         )}
 
-        {projectId && <ScenesCard projectId={projectId} routing={routing} version={version} />}
+        {projectId && <ScenesCard projectId={projectId} routing={routing} version={version}
+          onMakeFilm={() => makeFilm(true)} making={starting} canMakeFilm={filmReady} />}
       </div>
     </>
   );
