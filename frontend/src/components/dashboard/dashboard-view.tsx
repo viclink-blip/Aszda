@@ -102,7 +102,7 @@ export function DashboardView() {
                     href="/app/credits"
                   />
                   <MetricCard
-                    label="Active projects"
+                    label="My projects"
                     value={formatNumber(data.counts.projects)}
                     description="Your saved creative projects"
                     icon={FolderKanban}
