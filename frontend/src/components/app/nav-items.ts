@@ -1,25 +1,19 @@
 import {
-  AudioLines,
   Clapperboard,
   Coins,
-  CreditCard,
   FolderKanban,
   History,
-  Image as ImageIcon,
   LayoutDashboard,
   type LucideIcon,
   PenLine,
   Settings,
   Shield,
-  Film,
-  Wand2,
 } from "lucide-react";
 
 export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  planned?: boolean;
   /** Match only this exact path (used for /app so it is not active everywhere). */
   exact?: boolean;
 }
@@ -30,37 +24,35 @@ export interface NavGroup {
   adminOnly?: boolean;
 }
 
+/**
+ * Client navigation for the ASZDA workspace.
+ *
+ * Each item intentionally points to an existing, working route. Features that
+ * need new backend capabilities (film library, notifications, global character
+ * and scene libraries) will be added when their data flows are implemented.
+ */
 export const NAV_GROUPS: NavGroup[] = [
   {
+    label: "Workspace",
     items: [
       { href: "/app", label: "Dashboard", icon: LayoutDashboard, exact: true },
-      { href: "/app/projects", label: "Projects", icon: FolderKanban },
-      { href: "/app/generations", label: "Generations", icon: History },
-    ],
-  },
-  {
-    label: "Studios",
-    items: [
-      { href: "/app/studio/script", label: "Script", icon: PenLine },
-      { href: "/app/studio/image", label: "Image", icon: ImageIcon },
-      { href: "/app/studio/video", label: "Video", icon: Film },
-      { href: "/app/studio/animation", label: "Animation", icon: Wand2 },
-      { href: "/app/studio/voice", label: "Voice", icon: AudioLines },
-      { href: "/app/director", label: "AI Film Director", icon: Clapperboard },
+      { href: "/app/director", label: "Film Studio", icon: Clapperboard },
+      { href: "/app/studio/script", label: "Story Studio", icon: PenLine },
+      { href: "/app/projects", label: "My Projects", icon: FolderKanban },
     ],
   },
   {
     label: "Account",
     items: [
-      { href: "/app/billing", label: "Billing", icon: CreditCard },
-      { href: "/app/credits", label: "Credits", icon: Coins },
+      { href: "/app/credits", label: "Wallet & Credits", icon: Coins },
+      { href: "/app/generations", label: "Usage History", icon: History },
       { href: "/app/settings", label: "Settings", icon: Settings },
     ],
   },
   {
-    label: "Admin",
+    label: "Administration",
     adminOnly: true,
-    items: [{ href: "/app/admin", label: "Administration", icon: Shield }],
+    items: [{ href: "/app/admin", label: "Admin", icon: Shield }],
   },
 ];
 
