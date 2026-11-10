@@ -158,7 +158,7 @@ export function GenerationForm({
           ))}
       </fieldset>
 
-      <QuotePanel request={request} enabled={usable && !blockedReason && Object.keys(clientErrors).length === 0} />
+      {kind !== "text" && <QuotePanel request={request} enabled={usable && !blockedReason && Object.keys(clientErrors).length === 0} />}
 
       <FormError message={formError}>
         {formError && formError.toLowerCase().includes("credits") && (
