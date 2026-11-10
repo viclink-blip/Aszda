@@ -8,7 +8,17 @@ from sqlalchemy import func, select
 from app.api.auth import _clear_cookie
 from app.api.common import doc, page, pagination, parse_body
 from app.extensions import db
-from app.models import ACTIVE_STATUSES, Asset, Character, CreditTransaction, FilmProduction, FilmStatus, GenerationJob, Project, ProjectStatus
+from app.models import (
+    ACTIVE_STATUSES,
+    Asset,
+    Character,
+    CreditTransaction,
+    FilmProduction,
+    FilmStatus,
+    GenerationJob,
+    Project,
+    ProjectStatus,
+)
 from app.schemas.requests import ChangePasswordIn, DeleteAccountIn, ProfileUpdateIn
 from app.schemas.serializers import (
     asset_out,
