@@ -180,7 +180,7 @@ export interface CreditTransaction {
 export interface Dashboard {
   user: User;
   credits: CreditAccount;
-  counts: { projects: number; assets: number; active_jobs: number };
+  counts: { projects: number; active_projects: number; characters: number; films: number; assets: number; active_jobs: number };
   recent_projects: Project[];
   recent_jobs: Job[];
   recent_assets: Asset[];
