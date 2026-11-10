@@ -1,69 +1,62 @@
 import {
-  AudioLines,
-  Clapperboard,
-  Coins,
-  CreditCard,
-  FolderKanban,
-  History,
-  Image as ImageIcon,
   LayoutDashboard,
-  type LucideIcon,
-  PenLine,
+  Clapperboard,
+  BookOpen,
+  Users,
+  PanelsTopLeft,
+  Film,
+  FolderKanban,
+  Wallet,
+  History,
   Settings,
   Shield,
-  Film,
-  Wand2,
+  type LucideIcon,
 } from "lucide-react";
 
 export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  planned?: boolean;
-  /** Match only this exact path (used for /app so it is not active everywhere). */
   exact?: boolean;
+  planned?: boolean;
 }
 
 export interface NavGroup {
-  label?: string;
+  label: string;
   items: NavItem[];
   adminOnly?: boolean;
 }
 
 export const NAV_GROUPS: NavGroup[] = [
   {
+    label: "Workspace",
     items: [
       { href: "/app", label: "Dashboard", icon: LayoutDashboard, exact: true },
-      { href: "/app/projects", label: "Projects", icon: FolderKanban },
-      { href: "/app/generations", label: "Generations", icon: History },
-    ],
-  },
-  {
-    label: "Studios",
-    items: [
-      { href: "/app/studio/script", label: "Script", icon: PenLine },
-      { href: "/app/studio/image", label: "Image", icon: ImageIcon },
-      { href: "/app/studio/video", label: "Video", icon: Film },
-      { href: "/app/studio/animation", label: "Animation", icon: Wand2 },
-      { href: "/app/studio/voice", label: "Voice", icon: AudioLines },
-      { href: "/app/director", label: "AI Film Director", icon: Clapperboard },
+      { href: "/app/director", label: "Film Studio", icon: Clapperboard },
+      { href: "/app/studio/script", label: "Story Studio", icon: BookOpen },
+      { href: "/app/projects", label: "Character Studio", icon: Users },
+      { href: "/app/director", label: "Scene Preview", icon: PanelsTopLeft },
+      { href: "/app/generations", label: "My Films", icon: Film },
+      { href: "/app/projects", label: "My Projects", icon: FolderKanban },
     ],
   },
   {
     label: "Account",
     items: [
-      { href: "/app/billing", label: "Billing", icon: CreditCard },
-      { href: "/app/credits", label: "Credits", icon: Coins },
+      { href: "/app/credits", label: "Wallet & Credits", icon: Wallet },
+      { href: "/app/generations", label: "Usage History", icon: History },
       { href: "/app/settings", label: "Settings", icon: Settings },
     ],
   },
   {
-    label: "Admin",
+    label: "Administration",
     adminOnly: true,
-    items: [{ href: "/app/admin", label: "Administration", icon: Shield }],
+    items: [{ href: "/app/admin", label: "Admin", icon: Shield }],
   },
 ];
 
 export function isActive(pathname: string, item: NavItem): boolean {
-  return item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
+  return item.exact
+    ? pathname === item.href
+    : pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
