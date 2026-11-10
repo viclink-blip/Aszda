@@ -42,7 +42,7 @@ export function JobResult({ job }: { job: Job }) {
             <div className="mt-3 flex max-h-[40vh] flex-col gap-3 overflow-y-auto">
               {history.map((turn, i) => (
                 <div key={i} className={turn.role === "user" ? "rounded-md bg-surface p-2 text-fg" : "text-muted"}>
-                  <p className="mb-1 text-xs font-medium text-subtle">{turn.role === "user" ? "You" : "Claude"}</p>
+                  <p className="mb-1 text-xs font-medium text-subtle">{turn.role === "user" ? "You" : "ASZDA"}</p>
                   {turn.role === "user" ? <p className="whitespace-pre-wrap">{turn.content}</p> : <SafeMarkdown text={turn.content} />}
                 </div>
               ))}
