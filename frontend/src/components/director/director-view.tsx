@@ -133,7 +133,7 @@ function SceneRow({ projectId, scene, routing }: { projectId: string; scene: Sce
               {KIND_INFO[r.kind].label}:{" "}
               {r.job_id ? (
                 <Link className="text-fg hover:text-accent" href={`/app/generations?kind=${r.kind === "voice" ? "speech" : r.kind}`}>
-                  {r.created ? "started" : "already started"} with {providerLabel(r.provider ?? "")} {r.model}
+                  {r.created ? "Started" : "Already started"}
                 </Link>
               ) : r.skipped ? r.skipped : <span className="text-danger">{r.error?.message}</span>}
             </li>
@@ -308,7 +308,6 @@ export function DirectorView() {
         Every step costs credits: the plan, and each scene&apos;s picture, video and voice. After planning, ASZDA
         checks that your balance covers the whole film and waits for you if it does not. Steps that fail are refunded.
       </Notice>
-      <ProviderStrip routing={routing} />
       <div className="flex flex-col gap-6">
         <Card id="make-film">
           <CardHeader title="1. Your story" />
