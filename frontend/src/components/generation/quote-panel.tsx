@@ -54,7 +54,7 @@ export function QuotePanel({ request, enabled }: { request: GenerationInput | nu
         <Coins className="h-4 w-4 text-accent" aria-hidden /> Estimated cost
       </div>
       <div className="mt-2 text-sm">
-        {shown.kind === "idle" && <p className="text-muted">Choose an available model and fill in the settings to see an estimate.</p>}
+        {shown.kind === "idle" && <p className="text-muted">Fill in the settings to see an estimate.</p>}
         {shown.kind === "loading" && <p className="text-muted">Estimating…</p>}
         {shown.kind === "incomplete" && <p className="text-muted">Not ready to estimate yet: {shown.message}</p>}
         {shown.kind === "error" && <p className="text-danger">{shown.message}</p>}
