@@ -13,7 +13,6 @@ import { api, ApiError, errorMessage, newIdempotencyKey, type GenerationInput } 
 import { focusFirstError } from "@/lib/forms";
 import type { GenerationKind, Job } from "@/lib/types";
 import { FieldControl } from "./field-control";
-import { ModelPicker } from "./model-picker";
 import { buildParams, checkRequired, type FormValues, initialValues, isFieldVisible } from "./params";
 import { QuotePanel } from "./quote-panel";
 
@@ -134,19 +133,16 @@ export function GenerationForm({
     return <div className="flex flex-col gap-3" role="status" aria-label="Loading models"><Skeleton className="h-20" /><Skeleton className="h-40" /></div>;
   }
   if (options.length === 0) {
-    return <Notice tone="warning" title="No models for this studio">No provider offers this kind of generation yet.</Notice>;
+    return <Notice tone="warning" title="No models for this studio">This feature is not available yet. Please check back soon.</Notice>;
   }
 
   return (
     <form ref={formRef} onSubmit={submit} noValidate className="flex flex-col gap-6">
       {available.length === 0 && (
         <Notice tone="warning" title="Generation is not available yet">
-          None of the models for this studio can be used right now — each one is listed below with the reason.
-          You can still look at the settings. Nothing will be generated or charged until a model is available.
+          This feature is temporarily unavailable. Nothing will be generated or charged until it is ready.
         </Notice>
       )}
-      <ModelPicker options={options} value={selected?.key ?? null} onChange={setChosenKey} />
-
       <fieldset disabled={!usable} className="flex flex-col gap-4 disabled:opacity-70">
         <legend className="mb-2 text-sm font-medium text-fg">Settings</legend>
         {fields
