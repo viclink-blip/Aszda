@@ -119,7 +119,7 @@ function SceneRow({ projectId, scene, routing }: { projectId: string; scene: Sce
             const { label, icon: Icon } = KIND_INFO[kind];
             return (
               <Button key={kind} size="sm" variant="secondary" loading={busy === kind} disabled={busy !== null || !ready(kind)}
-                onClick={() => generate([kind], kind)} title={ready(kind) ? undefined : "No provider is set up for this yet"}>
+                onClick={() => generate([kind], kind)} title={ready(kind) ? undefined : "This option is not available yet"}>
                 <Icon className="size-4" aria-hidden /> {label}
               </Button>
             );
@@ -303,7 +303,7 @@ export function DirectorView() {
 
   return (
     <>
-      <PageHeader title="AI Film Director" description="Tell your story and click Make my film. ASZDA plans the scenes, makes every picture, video and voice, and joins them into one film." />
+      <PageHeader eyebrow="FILM STUDIO · STEP 01" title="Start with your idea." description="Tell ASZDA what you want to see. Write naturally—your idea can be a sentence or a detailed story." />
       <Notice tone="info" className="mb-6">
         Every step costs credits: the plan, and each scene&apos;s picture, video and voice. After planning, ASZDA
         checks that your balance covers the whole film and waits for you if it does not. Steps that fail are refunded.
@@ -343,7 +343,7 @@ export function DirectorView() {
                 )}
               </Field>
               <FormError message={formError} />
-              {!planReady && routing && <Notice tone="warning">No text provider is set up yet, so plans cannot be created.</Notice>}
+              {!planReady && routing && <Notice tone="warning">Story planning is temporarily unavailable.</Notice>}
               <div className="flex flex-wrap items-center gap-3">
                 <Button type="button" size="lg" loading={starting} disabled={!filmReady || submitting} onClick={() => makeFilm()}>
                   <Clapperboard className="h-5 w-5" aria-hidden /> Make my film
