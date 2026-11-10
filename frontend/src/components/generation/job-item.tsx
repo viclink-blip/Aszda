@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { useJobPolling } from "@/hooks/use-job-polling";
 import { api, ApiError, errorMessage, newIdempotencyKey } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { formatNumber, formatRelative, KIND_LABELS, providerLabel } from "@/lib/format";
+import { formatNumber, formatRelative, KIND_LABELS } from "@/lib/format";
 import { isJobActive, type GenerationKind, type Job } from "@/lib/types";
 import { ContinueConversation } from "./continue-conversation";
 import { JobResult } from "./job-result";
@@ -99,7 +99,6 @@ export function JobItem({ job: initial, onRetried, onContinued, showProject = tr
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-sm font-medium text-fg">{KIND_LABELS[job.kind]}</span>
-            <span className="text-xs text-subtle">{providerLabel(job.provider)} · {job.model}</span>
             <StatusBadge status={job.status} />
           </div>
           {summary && <p className="mt-1 line-clamp-2 text-sm text-muted">{summary}</p>}
