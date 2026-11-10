@@ -12,10 +12,10 @@ function Count({ n, label }: { n: number | undefined; label: string }) {
   return <span>{n} {label}{n === 1 ? "" : "s"}</span>;
 }
 
-export function ProjectCard({ project }: { project: Project }) {
+export function ProjectCard({ project, openTab }: { project: Project; openTab?: "characters" | "storyboard" }) {
   return (
     <Link
-      href={`/app/projects/${project.id}`}
+      href={`/app/projects/${project.id}${openTab ? `?tab=${openTab}` : ""}`}
       className="group flex flex-col rounded-xl border border-line bg-surface p-5 transition-colors hover:border-line-strong"
     >
       <div className="flex items-start justify-between gap-3">
