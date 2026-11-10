@@ -54,7 +54,6 @@ export function GenerationForm({
 }: GenerationFormProps) {
   const { refresh: refreshCredits } = useCredits();
   const formRef = useRef<HTMLFormElement>(null);
-  const [chosenKey, setChosenKey] = useState<string | null>(null);
   const [valuesByModel, setValuesByModel] = useState<Record<string, FormValues>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -63,7 +62,7 @@ export function GenerationForm({
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
 
   const available = options.filter((o) => o.model.available);
-  const selected = options.find((o) => o.key === chosenKey) ?? available[0] ?? options[0] ?? null;
+  const selected = available[0] ?? options[0] ?? null;
   const usable = Boolean(selected?.model.available);
   const hidden = new Set(Object.keys(fixedValues));
   const fields = selected?.model.fields ?? [];
