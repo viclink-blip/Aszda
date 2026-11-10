@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from app.api.auth import _clear_cookie
 from app.api.common import doc, page, pagination, parse_body
 from app.extensions import db
-from app.models import ACTIVE_STATUSES, Asset, CreditTransaction, GenerationJob, Project
+from app.models import ACTIVE_STATUSES, Asset, Character, CreditTransaction, FilmProduction, FilmStatus, GenerationJob, Project, ProjectStatus
 from app.schemas.requests import ChangePasswordIn, DeleteAccountIn, ProfileUpdateIn
 from app.schemas.serializers import (
     asset_out,
@@ -94,6 +94,12 @@ def dashboard():
                               .order_by(GenerationJob.created_at.desc()).limit(8)).all()
     project_count = db.session.scalar(select(func.count()).select_from(Project)
                                       .where(Project.owner_id == user.id))
+    active_project_count = db.session.scalar(select(func.count()).select_from(Project).where(
+        Project.owner_id == user.id, Project.status.in_([ProjectStatus.DRAFT, ProjectStatus.IN_PROGRESS])))
+    character_count = db.session.scalar(select(func.count()).select_from(Character).join(
+        Project, Character.project_id == Project.id).where(Project.owner_id == user.id))
+    film_count = db.session.scalar(select(func.count()).select_from(FilmProduction).where(
+        FilmProduction.user_id == user.id, FilmProduction.status == FilmStatus.COMPLETED))
     asset_count = db.session.scalar(select(func.count()).select_from(Asset).where(Asset.owner_id == user.id))
     active_jobs = db.session.scalar(select(func.count()).select_from(GenerationJob).where(
         GenerationJob.user_id == user.id, GenerationJob.status.in_(ACTIVE_STATUSES)))
@@ -102,7 +108,9 @@ def dashboard():
     return jsonify({
         "user": user_out(user),
         "credits": credit_account_out(account),
-        "counts": {"projects": project_count, "assets": asset_count, "active_jobs": active_jobs},
+        "counts": {"projects": project_count, "active_projects": active_project_count,
+                   "characters": character_count, "films": film_count,
+                   "assets": asset_count, "active_jobs": active_jobs},
         "recent_projects": [project_out(p, stats.get(p.id)) for p in projects],
         "recent_jobs": [job_out(j) for j in jobs],
         "recent_assets": [asset_out(a) for a in recent_assets],
