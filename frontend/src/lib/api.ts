@@ -292,7 +292,7 @@ export const api = {
     list: (q: ListQuery & { status?: ProjectStatus | ""; q?: string } = {}) =>
       get<Page<Project>>("/api/projects", { ...q }),
     get: (id: string) => get<ProjectDetail>(`/api/projects/${id}`),
-    create: (data: { title: string; description?: string }) =>
+    create: (data: { title: string; description?: string; brief?: Record<string, unknown> }) =>
       post<{ project: Project }>("/api/projects", data),
     update: (id: string, data: { title?: string; description?: string; status?: ProjectStatus }) =>
       patch<{ project: Project }>(`/api/projects/${id}`, data),
