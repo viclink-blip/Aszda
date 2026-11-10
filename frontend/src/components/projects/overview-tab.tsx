@@ -18,6 +18,8 @@ import type { ProjectTabProps } from "./project-workspace";
 
 export function OverviewTab({ detail, update }: ProjectTabProps) {
   const { project } = detail;
+  const filmStyle = typeof project.brief.film_style === "string" ? project.brief.film_style.replaceAll("_", " ") : "Not set";
+  const filmDuration = typeof project.brief.target_duration_minutes === "number" ? `${project.brief.target_duration_minutes} minutes` : "Not set";
   const router = useRouter();
   const toast = useToast();
   const formRef = useRef<HTMLFormElement>(null);
@@ -115,6 +117,19 @@ export function OverviewTab({ detail, update }: ProjectTabProps) {
       </Card>
 
       <div className="flex flex-col gap-6">
+        <Card>
+          <CardHeader title="Film setup" description="The creative direction saved when this project was created." />
+          <CardBody className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-subtle">STYLE</p>
+              <p className="mt-1 capitalize text-fg">{filmStyle}</p>
+            </div>
+            <div>
+              <p className="text-xs text-subtle">TARGET DURATION</p>
+              <p className="mt-1 text-fg">{filmDuration}</p>
+            </div>
+          </CardBody>
+        </Card>
         <Card>
           <CardHeader title="Create for this project" />
           <CardBody className="grid grid-cols-2 gap-2">
