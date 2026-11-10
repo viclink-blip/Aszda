@@ -2,6 +2,7 @@
 
 import { FolderKanban, Plus, Search } from "lucide-react";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -20,6 +21,15 @@ import { ProjectCard } from "./project-card";
 const PAGE_SIZE = 24;
 
 export function ProjectsView() {
+  const searchParams = useSearchParams();
+  const studio = searchParams.get("studio");
+  const openTab = studio === "characters" ? "characters" : studio === "scenes" ? "storyboard" : undefined;
+  const pageTitle = studio === "characters" ? "Character Studio" : studio === "scenes" ? "Scene Preview" : "My Projects";
+  const pageDescription = studio === "characters"
+    ? "Choose a project to create and manage its characters."
+    : studio === "scenes"
+      ? "Choose a project to review and arrange its scenes."
+      : "Each project holds one story's characters, storyboard, assets and generations.";
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<ProjectStatus | "">("");
   const [offset, setOffset] = useState(0);
@@ -36,8 +46,8 @@ export function ProjectsView() {
   return (
     <>
       <PageHeader
-        title="Projects"
-        description="Each project holds one story's characters, storyboard, assets and generations."
+        title={pageTitle}
+        description={pageDescription}
         actions={<Button onClick={() => setCreating(true)}><Plus className="h-4 w-4" aria-hidden /> New project</Button>}
       />
       <CreateProjectDialog open={creating} onOpenChange={setCreating} />
@@ -90,7 +100,7 @@ export function ProjectsView() {
             {data.total} project{data.total === 1 ? "" : "s"}{loading ? " · updating…" : ""}
           </p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {data.items.map((project) => <ProjectCard key={project.id} project={project} />)}
+            {data.items.map((project) => <ProjectCard key={project.id} project={project} openTab={openTab} />)}
           </div>
           <Pagination offset={offset} limit={PAGE_SIZE} total={data.total} onChange={setOffset} />
         </>
