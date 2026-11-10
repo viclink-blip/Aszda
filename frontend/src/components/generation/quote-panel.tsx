@@ -74,7 +74,7 @@ export function QuotePanel({ request, enabled }: { request: GenerationInput | nu
               )}
             </>
           ) : (
-            <p className="text-muted">Pricing for this model has not been configured, so it cannot be used yet.</p>
+            <p className="text-muted">Pricing is not available for this request yet.</p>
           )
         )}
       </div>
