@@ -29,15 +29,15 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/app", label: "Dashboard", icon: LayoutDashboard, exact: true },
       { href: "/app/director", label: "Film Studio", icon: Clapperboard },
       { href: "/app/studio/script", label: "Story Studio", icon: BookOpen },
-      { href: "/app/projects", label: "Character Studio", icon: Users },
-      { href: "/app/director", label: "Scene Preview", icon: PanelsTopLeft },
+      { href: "/app/projects?studio=characters", label: "Character Studio", icon: Users },
+      { href: "/app/projects?studio=scenes", label: "Scene Preview", icon: PanelsTopLeft },
       { href: "/app/generations?kind=video", label: "My Films", icon: Film },
     ],
   },
   {
     label: "Account",
     items: [
-      { href: "/app/credits", label: "Wallet & Plans", icon: Wallet },
+      { href: "/app/billing", label: "Wallet & Plans", icon: Wallet },
       { href: "/app/settings", label: "Settings", icon: Settings },
     ],
   },
