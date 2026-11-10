@@ -22,7 +22,7 @@ import { useToast } from "@/components/ui/toast";
 import { useApi } from "@/hooks/use-api";
 import { useJobPolling } from "@/hooks/use-job-polling";
 import { api, errorMessage, newIdempotencyKey } from "@/lib/api";
-import { formatRelative, providerLabel } from "@/lib/format";
+import { formatRelative } from "@/lib/format";
 import type { CapabilityRoute, Film as FilmRecord, Job, Scene, SceneGenerationResult } from "@/lib/types";
 
 const IDEA_MAX = 10000;
@@ -76,26 +76,6 @@ const KIND_INFO: Record<SceneKind, { label: string; icon: typeof ImageIcon; rout
   video: { label: "Video", icon: Film, route: "video" },
   voice: { label: "Voice", icon: AudioLines, route: "speech" },
 };
-
-/** Which provider each step will use, so nobody is surprised by where a job goes. */
-function ProviderStrip({ routing }: { routing: CapabilityRoute[] | undefined }) {
-  if (!routing) return null;
-  const labels: Record<string, string> = { text: "Planning", image: "Images", video: "Video", speech: "Voice" };
-  return (
-    <ul className="mb-6 grid gap-2 sm:grid-cols-4">
-      {routing.map((r) => (
-        <li key={r.kind} className="rounded-lg border border-line bg-surface px-3 py-2 text-sm">
-          <p className="text-xs text-subtle">{labels[r.kind]}</p>
-          {r.ready ? (
-            <p className="text-fg">{providerLabel(r.ready.provider)} <span className="font-mono text-xs text-subtle">{r.ready.model}</span></p>
-          ) : (
-            <p className="text-warning">Not set up yet</p>
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 function SceneRow({ projectId, scene, routing }: { projectId: string; scene: Scene; routing: CapabilityRoute[] | undefined }) {
   const toast = useToast();
@@ -404,7 +384,7 @@ export function DirectorView() {
               ) : job.status === "failed" || job.status === "cancelled" ? (
                 <Notice tone="danger" title="The plan could not be created">{job.error?.message ?? "Please try again."} Unused credits were returned.</Notice>
               ) : (
-                <p className="text-sm text-muted">Claude is planning your film. This can take a minute or two.</p>
+                <p className="text-sm text-muted">ASZDA is planning your film. This can take a minute or two.</p>
               )}
             </CardBody>
           </Card>
